@@ -46,12 +46,28 @@
     return model.getLineContent(position.lineNumber).slice(0, position.column - 1).endsWith(text) ? 'ok' : 'unexpected';
   }
 
+  // 단어 시작(커서에서 len글자 앞)과 커서의 화면 좌표. 편집기 표시 영역 밖이면 null
+  function rect({ len }) {
+    const ed = focused();
+    if (!ed || !ed.getSelection()?.isEmpty()) return null;
+    const box = ed.getDomNode()?.getBoundingClientRect();
+    if (!box) return null;
+    const { width, height } = ed.getLayoutInfo();
+    const { lineNumber, column } = ed.getPosition();
+    const at = (col) => {
+      const p = col >= 1 ? ed.getScrolledVisiblePosition({ lineNumber, column: col }) : null;
+      if (!p || p.left < 0 || p.top < 0 || p.left > width || p.top + p.height > height) return null;
+      return { x: box.left + p.left, top: box.top + p.top, bottom: box.top + p.top + p.height };
+    };
+    return { start: at(column - len), caret: at(column) };
+  }
+
   document.addEventListener('eng2kor:monaco', (e) => {
     if (typeof e.detail !== 'string') return;
     let result = null;
     try {
       const request = JSON.parse(e.detail);
-      result = request.op === 'read' ? read() : request.op === 'edit' ? edit(request) : null;
+      result = request.op === 'read' ? read() : request.op === 'edit' ? edit(request) : request.op === 'rect' ? rect(request) : null;
     } catch {
       result = null;
     }

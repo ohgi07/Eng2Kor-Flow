@@ -2,11 +2,13 @@
 (() => {
   'use strict';
 
-  const { convert, extractToken } = Eng2Kor;
+  const { convert, preview, extractToken } = Eng2Kor;
+  const bubble = Eng2KorPreview;
 
-  const DEFAULTS = { enabled: true, disabledSites: [] };
+  const DEFAULTS = { enabled: true, disabledSites: [], preview: true };
   const TRIGGERS = new Set([' ', 'Enter', '.', ',', '!', '?', ';', ':', ')', ']', '}', "'", '"', '~']);
   const NAV_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
+  const TYPING_GRACE = 300; // 타이핑 직후 이 시간(ms) 안의 selectionchange도 타이핑으로 본다 (Slate처럼 늦게 그리는 편집기)
   const TEXT_TYPES = new Set(['text', 'search']);
   const CODE_EDITORS = '.cm-editor, .CodeMirror, .monaco-editor, .ace_editor';
   // 긴급 차단 목록. 구글 문서는 키 입력 추적 모드를 구현하기 전까지 막는다.
@@ -23,6 +25,11 @@
   let composing = false;
   let record = null; // 마지막 변환 (복원용, 스펙 4.6)
   let pendingBlock = null; // block 복원 사후 검사 대기
+  // 미리보기 (미리보기 스펙 3–5절)
+  let previewFrame = 0; // 예약된 requestAnimationFrame
+  let previewRoot = null; // 말풍선을 띄운 편집 루트. null이면 숨긴 상태
+  let previewSerial = 0; // 편집 루트가 바뀔 때마다 늘린다 (말풍선 위/아래 유지 키)
+  let typedAt = -Infinity; // 마지막 타이핑 시각
 
   // ── 사이트와 설정 ──
   const isTop = window.top === window;
@@ -38,7 +45,10 @@
   })();
 
   const loadSettings = () =>
-    chrome.storage.sync.get(DEFAULTS, (values) => Object.assign(settings, values, { loaded: true }));
+    chrome.storage.sync.get(DEFAULTS, (values) => {
+      Object.assign(settings, values, { loaded: true });
+      schedulePreview(false); // 보이는 중이면 새 설정으로 다시 판정한다 (꺼졌으면 숨는다)
+    });
   loadSettings();
   chrome.storage.onChanged.addListener((_changes, area) => {
     if (area === 'sync') loadSettings();
@@ -224,12 +234,16 @@
   }
 
   // ── 변환 ──
+  // 방금 되돌린 단어의 그 자리인가. 그 자리에서는 바꾸지도, 미리 보여 주지도 않는다
+  const atKept = (root, hit, point) =>
+    kept?.root === root && kept.token === hit.token && kept.at === point.before.length;
+
   function convertAtCaret(e, root) {
     const point = readPoint(root);
     if (!point) return;
     const hit = extractToken(point.before, point.next, point.prevOutside);
     // 되돌린 단어 바로 뒤(같은 자리)에서 누른 트리거는 그대로 둔다
-    if (hit && kept?.root === root && kept.token === hit.token && kept.at === point.before.length) {
+    if (hit && atKept(root, hit, point)) {
       chain.set(root, false);
       return;
     }
@@ -250,6 +264,77 @@
     if (!kind) return;
     const trigger = kind === 'newline' ? '\n' : kind === 'block' ? '' : e.key;
     record = { root, original: hit.token, converted: hangul, kind, tail: hangul + trigger };
+  }
+
+  // ── 미리보기 (미리보기 스펙 3–5절) ──
+  function activeRoot() {
+    let el = document.activeElement;
+    while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+    return el ? rootFrom(el) : null;
+  }
+
+  // 지금 트리거를 누를 때와 같은 입력·상태로 판정한다. 띄울 것이 없으면 null
+  function previewAt(root) {
+    if (!settings.preview || !siteActive() || composing) return null;
+    if (isPasswordLike(root) || isExcluded(root)) return null;
+    const point = readPoint(root);
+    const hit = point && extractToken(point.before, point.next, point.prevOutside);
+    if (!hit || atKept(root, hit, point)) return null;
+    const result = preview(hit.token, { chain: chain.get(root) === true });
+    if (!result) return null;
+    const end = point.before.length;
+    const anchors = isMonaco(root) ? callMonaco({ op: 'rect', len: hit.token.length })
+      : isField(root) ? bubble.fieldAnchors(root, hit.start, end)
+      : bubble.rangeAnchors(point.node, hit.start, end);
+    const anchor = bubble.pickAnchor(root, anchors);
+    return anchor && { anchor, result, start: hit.start };
+  }
+
+  function updatePreview() {
+    const root = activeRoot();
+    const shown = root && previewAt(root);
+    if (!shown) {
+      hidePreview();
+      return;
+    }
+    if (root !== previewRoot) {
+      bubble.hide(); // 다시 띄워 top layer 맨 위로 올린다
+      previewSerial += 1;
+    }
+    previewRoot = root;
+    bubble.show(shown.anchor, shown.result, `${previewSerial}:${shown.start}`);
+  }
+
+  // typing이면 숨겨져 있어도 다시 판정하고, 아니면 보이는 중일 때만 위치를 다시 맞춘다. 한 프레임에 한 번
+  function schedulePreview(typing) {
+    if ((!typing && !previewRoot) || previewFrame) return;
+    previewFrame = requestAnimationFrame(() => {
+      previewFrame = 0;
+      updatePreview();
+    });
+  }
+
+  function hidePreview() {
+    cancelAnimationFrame(previewFrame);
+    previewFrame = 0;
+    previewRoot = null;
+    bubble.hide();
+  }
+
+  function markTyping() {
+    typedAt = performance.now();
+    schedulePreview(true);
+  }
+
+  // 트리거·이동 키·조합 키는 숨기고, 나머지 키(글자, Backspace, Delete 등)는 다시 판정한다
+  function previewOnKeyDown(e) {
+    if (!e.isTrusted) return;
+    const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
+    if (!plain || NAV_KEYS.has(e.key) || TRIGGERS.has(e.key) || e.isComposing || e.keyCode === 229) {
+      hidePreview();
+      return;
+    }
+    markTyping();
   }
 
   // ── 복원 (스펙 4.6) ──
@@ -344,12 +429,24 @@
   }
 
   addEventListener('keydown', onKeyDown, true);
+  addEventListener('keydown', previewOnKeyDown, true);
   addEventListener('beforeinput', forgetKeptOnTyping, true);
+  // keydown 없이 글자를 넣는 입력(받아쓰기 등)이 beforeinput을 취소하는 편집기(Slate)에 들어가면 input도 오지 않는다
+  for (const type of ['beforeinput', 'input']) addEventListener(type, (e) => {
+    if (e.isTrusted) markTyping();
+  }, true);
+  document.addEventListener('selectionchange', () => schedulePreview(performance.now() - typedAt < TYPING_GRACE));
+  for (const type of ['scroll', 'resize', 'wheel']) addEventListener(type, () => schedulePreview(false), { capture: true, passive: true });
+  visualViewport?.addEventListener('resize', () => schedulePreview(false));
+  visualViewport?.addEventListener('scroll', () => schedulePreview(false));
   addEventListener('mousedown', resetFrom, true);
+  addEventListener('pointerdown', hidePreview, true);
   addEventListener('focusin', resetFrom, true);
+  addEventListener('focusout', hidePreview, true);
   addEventListener('paste', resetFrom, true);
   addEventListener('compositionstart', (e) => {
     composing = true;
+    hidePreview();
     resetFrom(e);
   }, true);
   addEventListener('compositionend', () => {
