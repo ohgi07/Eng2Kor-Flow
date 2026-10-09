@@ -12,7 +12,7 @@
       runtime: { onMessage: { addListener() {} } },
     };
     Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
-    for (const name of ['words', 'hangul', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
+    for (const name of ['words', 'hangul', 'preview', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
   }
 </script>
 <style>
@@ -36,6 +36,20 @@
   <label for="editor">contenteditable</label><div id="editor" contenteditable="true"></div>
   <label for="rich">contenteditable (문단 구조)</label><div id="rich" contenteditable="true"><p>첫 문단</p></div>
   <label for="spans">contenteditable (span 경계: abc 뒤에 붙은 단어는 변환하면 안 됨)</label><div id="spans" contenteditable="true"><span>abc</span><span>gksrmf</span></div>
+</section>
+
+<section>
+  <h2>미리보기 위치</h2>
+  <label for="long-input">긴 input (끝에 이어 치면 가로로 스크롤된 상태)</label>
+  <input id="long-input" value="this is a long english sentence that keeps going until the field has to scroll sideways to show the end">
+  <label for="center">가운데 정렬 input (말풍선은 입력칸 왼쪽 아래 모서리)</label>
+  <input id="center" style="text-align: center">
+  <label for="long-area">긴 textarea (약 5,000자, 끝에 이어 치기)</label>
+  <textarea id="long-area" rows="5"></textarea>
+  <label for="clip">스크롤 상자 안 contenteditable (단어가 스크롤로 가려지면 말풍선이 사라져야 함)</label>
+  <div style="max-height: 5em; overflow: auto; border: 1px solid #aaa; border-radius: 4px">
+    <div id="clip" contenteditable="true" style="border: 0">첫 줄<br>둘째 줄<br>셋째 줄<br>넷째 줄<br>다섯째 줄<br></div>
+  </div>
 </section>
 
 <section>
@@ -68,6 +82,7 @@
 </section>
 
 <script>
+  document.getElementById('long-area').value = '미리보기 성능 시험 문장입니다. hello world. '.repeat(160);
   const direct = new URLSearchParams(location.search).has('direct') ? '?direct=1' : '';
   document.getElementById('frame').src = `http://127.0.0.1:8081/test/frame.html${direct}`;
 

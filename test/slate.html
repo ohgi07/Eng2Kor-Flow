@@ -12,7 +12,7 @@
       runtime: { onMessage: { addListener() {} } },
     };
     Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
-    for (const name of ['words', 'hangul', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
+    for (const name of ['words', 'hangul', 'preview', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
   }
 </script>
 <style>
