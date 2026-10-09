@@ -9,8 +9,11 @@
   const NAV_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
   const TEXT_TYPES = new Set(['text', 'search']);
   const CODE_EDITORS = '.cm-editor, .CodeMirror, .monaco-editor, .ace_editor';
-  // 긴급 차단 목록. 구글 문서는 키 입력 추적 모드 스파이크를 통과하기 전까지 막는다.
+  // 긴급 차단 목록. 구글 문서는 키 입력 추적 모드를 구현하기 전까지 막는다.
   const UNSUPPORTED_HOSTS = new Set(['docs.google.com']);
+  // Monaco 편집기를 monaco.js(MAIN world)를 통해 다루는 사이트. manifest의 monaco.js 대상과 같아야 한다.
+  const MONACO_HOSTS = new Set(['colab.research.google.com']);
+  const monacoHost = MONACO_HOSTS.has(location.hostname);
 
   const settings = { ...DEFAULTS, loaded: false };
   const skip = new Set(); // 이 페이지에서 되돌린 토큰 (저장하지 않음)
@@ -65,6 +68,7 @@
   }
 
   function isExcluded(el) {
+    if (isMonaco(el)) return false;
     if (el.localName === 'input' && !TEXT_TYPES.has(el.type)) return true;
     if (el.readOnly || el.disabled) return true;
     return el.closest(CODE_EDITORS) !== null;
@@ -72,11 +76,14 @@
 
   // ── 편집 대상 (스펙 4.3) ──
   const isField = (el) => el.localName === 'input' || el.localName === 'textarea';
+  const isMonaco = (el) => monacoHost && el.classList.contains('monaco-editor');
   const norm = (text) => text.replace(/\u00a0/g, ' ');
 
   function rootFrom(node) {
     let el = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
     if (!el) return null;
+    const editor = monacoHost ? el.closest('.monaco-editor') : null;
+    if (editor) return editor;
     if (isField(el)) return el;
     if (!el.isContentEditable) return null;
     while (el.parentElement?.isContentEditable) el = el.parentElement;
@@ -167,7 +174,34 @@
     return after && norm(after.before).endsWith(text) ? 'ok' : 'unexpected';
   }
 
+  // Monaco(Colab): monaco.js와 document 이벤트로 주고받는다. 이벤트 처리는 동기라 바로 답을 받는다.
+  // 실행 환경 사이에는 객체가 넘어가지 않으므로 detail은 문자열 JSON만 쓴다.
+  let monacoReply = null;
+  if (monacoHost) document.addEventListener('eng2kor:monaco-reply', (e) => { monacoReply = e.detail; });
+
+  function callMonaco(request) {
+    monacoReply = null;
+    document.dispatchEvent(new CustomEvent('eng2kor:monaco', { detail: JSON.stringify(request) }));
+    try {
+      return typeof monacoReply === 'string' ? JSON.parse(monacoReply) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // 텍스트 셀은 전체, 코드 셀은 주석(1)·문자열(2) 안에서만 읽는다. 자동완성 목록이 떠 있으면 건드리지 않는다.
+  function readMonaco() {
+    if (document.querySelector('.suggest-widget.visible')) return null;
+    const res = callMonaco({ op: 'read' });
+    if (!res || (res.language !== 'markdown' && res.tokenType !== 1 && res.tokenType !== 2)) return null;
+    return { before: res.before, next: res.next, prevOutside: '' };
+  }
+
+  const replaceInMonaco = (point, len, text) =>
+    callMonaco({ op: 'edit', len, text, expected: point.before.slice(-len) }) ?? 'unchanged';
+
   function readPoint(root) {
+    if (isMonaco(root)) return readMonaco();
     if (isField(root)) return readField(root);
     const point = readEditable(root);
     if (!point) return null;
@@ -177,6 +211,7 @@
   }
 
   function replaceBeforeCaret(root, point, len, text) {
+    if (isMonaco(root)) return replaceInMonaco(point, len, text);
     return isField(root) ? replaceInField(root, len, text) : replaceInEditable(root, point, len, text);
   }
 
@@ -193,15 +228,17 @@
     const outcome = hangul ? replaceBeforeCaret(root, point, hit.token.length, hangul) : null;
     chain.set(root, outcome === 'ok');
     if (outcome !== 'ok') return;
-    // input의 Enter는 전송·실행으로 보고 복원 기록을 남기지 않는다
-    const kind = e.key !== 'Enter' ? 'char' : root.localName === 'textarea' ? 'newline' : isField(root) ? null : 'block';
+    // input의 Enter는 전송·실행으로, Monaco의 Enter는 자동 들여쓰기·셀 실행이 섞이므로 복원 기록을 남기지 않는다
+    const kind = e.key !== 'Enter' ? 'char'
+      : root.localName === 'textarea' ? 'newline'
+      : isField(root) || isMonaco(root) ? null : 'block';
     if (!kind) return;
     const trigger = kind === 'char' ? e.key : kind === 'newline' ? '\n' : '';
     record = { root, original: hit.token, converted: hangul, kind, tail: hangul + trigger };
   }
 
   // ── 복원 (스펙 4.6) ──
-  const readCaret = (root) => (isField(root) ? readField(root) : readEditable(root));
+  const readCaret = (root) => (isMonaco(root) ? readMonaco() : isField(root) ? readField(root) : readEditable(root));
 
   // char, newline: 커서 앞이 "변환 결과 + 트리거"면 한 번에 원문으로 되돌린다
   function revert(e, last) {
@@ -213,6 +250,7 @@
     const point = readCaret(last.root);
     if (!point || !norm(point.before).endsWith(last.tail)) return;
     e.preventDefault();
+    if (isMonaco(last.root)) e.stopPropagation(); // Monaco는 기본 동작이 막혀도 자체 처리로 지울 수 있다
     finishRevert(last, replaceBeforeCaret(last.root, point, last.tail.length, last.original));
   }
 
