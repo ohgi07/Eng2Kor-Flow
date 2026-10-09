@@ -20,6 +20,8 @@ node scripts/serve.mjs      # http://127.0.0.1:8080/test/playground.html (?direc
 - 크롬 `chrome://extensions` → 개발자 모드 → "압축해제된 확장 프로그램을 로드합니다" → `extension` 폴더.
 - `test/slate.html?direct=1`은 Discord와 같은 Slate 편집기에서 변환을 확인하는 페이지입니다.
 - 영어 사전은 `node scripts/gen-words.mjs <SCOWL 단어 목록>`으로 다시 만듭니다.
+- 아이콘은 `node scripts/make-icons.mjs`, 스토어 이미지는 `node scripts/screenshot.mjs`로 만듭니다(크롬 경로는 환경 변수 `CHROME`).
+- 스토어 업로드용 zip: `powershell -File scripts/pack.ps1`
 
 ## 지원 현황
 
