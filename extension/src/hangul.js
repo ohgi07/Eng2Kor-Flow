@@ -116,9 +116,8 @@ const Eng2Kor = (() => {
   const WORDS = typeof ENGLISH_WORDS !== 'undefined' ? ENGLISH_WORDS : require('./words.js');
 
   // 스펙 3.4: 토큰을 한글로 바꿀지 판정한다. 바꿀 결과 또는 null
-  function convert(token, { chain = false, skip } = {}) {
+  function convert(token, { chain = false } = {}) {
     if (token.length < 2 || !/^[A-Za-z]+$/.test(token) || token === token.toUpperCase()) return null;
-    if (skip?.has(token)) return null;
     const result = hangulCandidate(token);
     if (!result) return null;
     const lower = token.toLowerCase();

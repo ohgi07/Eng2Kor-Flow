@@ -64,11 +64,6 @@ test('convert: 결과 예시 (스펙 3.7)', () => {
   for (const [token, chain, expected] of rows) assert.equal(E.convert(token, { chain }), expected, `${token} chain=${chain}`);
 });
 
-test('convert: 이 페이지에서 되돌린 토큰은 건너뛴다 (대소문자 구분)', () => {
-  assert.equal(E.convert('dkssud', { skip: new Set(['dkssud']) }), null);
-  assert.equal(E.convert('dkssud', { skip: new Set(['Dkssud']) }), '안녕');
-});
-
 test('convert: 영문자 외 글자가 섞이면 변환하지 않는다', () => {
   for (const token of ['dkssud1', 'dk_ssud', 'dkssud!']) assert.equal(E.convert(token), null, token);
 });

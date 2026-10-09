@@ -16,7 +16,8 @@
   const monacoHost = MONACO_HOSTS.has(location.hostname);
 
   const settings = { ...DEFAULTS, loaded: false };
-  const skip = new Set(); // 이 페이지에서 되돌린 토큰 (저장하지 않음)
+  // 방금 되돌린 단어 { root, token, at(그 단어 끝 위치) }. 커서가 그 자리에 있는 동안은 다시 바꾸지 않는다 (메모리에만 둔다).
+  let kept = null;
   const chain = new WeakMap(); // 편집 루트 → 직전 단어를 이 확장이 변환했는가
   const wasPassword = new WeakSet(); // 한 번이라도 type=password였던 요소
   let composing = false;
@@ -227,11 +228,17 @@
     const point = readPoint(root);
     if (!point) return;
     const hit = extractToken(point.before, point.next, point.prevOutside);
+    // 되돌린 단어 바로 뒤(같은 자리)에서 누른 트리거는 그대로 둔다
+    if (hit && kept?.root === root && kept.token === hit.token && kept.at === point.before.length) {
+      chain.set(root, false);
+      return;
+    }
+    kept = null; // 다른 자리로 넘어가면 잊는다. 같은 단어를 나중에 다시 치면 다시 바꾼다.
     if (!hit) {
       if (/[A-Za-z]$/.test(point.before)) chain.set(root, false);
       return;
     }
-    const hangul = convert(hit.token, { chain: chain.get(root) === true, skip });
+    const hangul = convert(hit.token, { chain: chain.get(root) === true });
     const outcome = hangul ? replaceBeforeCaret(root, point, hit.token.length, hangul) : null;
     chain.set(root, outcome === 'ok');
     if (outcome !== 'ok') return;
@@ -258,12 +265,14 @@
     if (!point || !norm(point.before).endsWith(last.tail)) return;
     e.preventDefault();
     if (isMonaco(last.root)) e.stopPropagation(); // Monaco는 기본 동작이 막혀도 자체 처리로 지울 수 있다
-    finishRevert(last, replaceBeforeCaret(last.root, point, last.tail.length, last.original));
+    const outcome = replaceBeforeCaret(last.root, point, last.tail.length, last.original);
+    finishRevert(last, outcome, point.before.length - last.tail.length);
   }
 
-  function finishRevert(last, outcome) {
+  // start: 되돌린 원문이 시작하는 위치 (커서 앞 텍스트 기준). 편집기가 화면을 늦게 다시 그려도 계산으로 정한다.
+  function finishRevert(last, outcome, start) {
     if (outcome !== 'ok') return;
-    skip.add(last.original);
+    kept = { root: last.root, token: last.original, at: start + last.original.length };
     chain.set(last.root, false);
   }
 
@@ -280,7 +289,8 @@
       if (isPasswordLike(root)) return;
       const post = readEditable(root);
       if (!post || !norm(post.before).endsWith(last.converted)) return;
-      finishRevert(last, replaceInEditable(root, post, last.converted.length, last.original));
+      const outcome = replaceInEditable(root, post, last.converted.length, last.original);
+      finishRevert(last, outcome, post.before.length - last.converted.length);
     };
     pendingBlock = state;
     state.timer = setTimeout(check, 100);
@@ -305,6 +315,7 @@
     }
     if (!plain || NAV_KEYS.has(e.key)) {
       chain.set(root, false);
+      kept = null;
       return;
     }
     if (!TRIGGERS.has(e.key) || e.repeat || e.isComposing || e.keyCode === 229 || composing) return;
@@ -315,6 +326,7 @@
 
   function resetFrom(e) {
     record = null;
+    kept = null;
     const root = rootFrom(e.composedPath()[0]);
     if (root) chain.set(root, false);
   }
