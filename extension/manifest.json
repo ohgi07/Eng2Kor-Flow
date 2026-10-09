@@ -4,6 +4,10 @@
   "version": "1.0.0",
   "description": "영문 자판으로 잘못 친 한글을 입력하는 도중에 자동으로 바꿔 줍니다. 예: dkssud → 안녕",
   "permissions": ["storage"],
+  "action": {
+    "default_title": "Eng2Kor Flow",
+    "default_popup": "popup/popup.html"
+  },
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
