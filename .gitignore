@@ -1,0 +1,12 @@
+# 로컬 전용 문서
+docs/
+
+# 단어 목록 원본 다운로드 캐시
+scripts/.cache/
+
+# 출시용 압축 파일
+*.zip
+
+node_modules/
+.DS_Store
+Thumbs.db
