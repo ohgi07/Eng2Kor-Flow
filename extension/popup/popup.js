@@ -1,5 +1,5 @@
-// Eng2Kor Flow 팝업: 전체 켜기/끄기, 이 사이트 끄기, 꺼 둔 사이트 목록
-const DEFAULTS = { enabled: true, disabledSites: [] };
+// Eng2Kor Flow 팝업: 전체 켜기/끄기, 미리보기, 이 사이트 끄기, 꺼 둔 사이트 목록
+const DEFAULTS = { enabled: true, disabledSites: [], preview: true };
 const $ = (id) => document.getElementById(id);
 let state = { ...DEFAULTS };
 let host = '';
@@ -24,6 +24,8 @@ function save(patch) {
 
 function render() {
   $('enabled').checked = state.enabled;
+  $('preview').checked = state.preview;
+  $('preview').disabled = !state.enabled;
   $('site-row').hidden = !host;
   $('site-unavailable').hidden = !!host;
   $('site-host').textContent = host;
@@ -44,6 +46,7 @@ function render() {
 }
 
 $('enabled').addEventListener('change', (e) => save({ enabled: e.target.checked }));
+$('preview').addEventListener('change', (e) => save({ preview: e.target.checked }));
 $('site').addEventListener('change', (e) => save({
   disabledSites: e.target.checked
     ? state.disabledSites.filter((s) => s !== host)
