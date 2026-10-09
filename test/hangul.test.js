@@ -101,3 +101,56 @@ test('extractToken: 토큰 경계 (스펙 4.2)', () => {
   assert.equal(tok(''), null);
   assert.equal(tok('안녕 '), null);
 });
+
+// 평가 묶음: 한글을 두벌식 키로 되돌리는 도우미와, 단어마다 convert를 부르며 연쇄를 적용하는 시뮬레이터
+const { KEYMAP, CHO, JUNG, JONG, VOWEL_PAIRS, FINAL_PAIRS } = E.tables;
+const KEY_OF = Object.fromEntries(Object.entries(KEYMAP).map(([key, jamo]) => [jamo, key]));
+const SPLIT = Object.fromEntries([...Object.entries(VOWEL_PAIRS), ...Object.entries(FINAL_PAIRS)].map(([pair, jamo]) => [jamo, pair]));
+const jamoKeys = (jamo) => [...(SPLIT[jamo] ?? jamo)].map((j) => KEY_OF[j]).join('');
+
+function toKeys(text) {
+  let keys = '';
+  for (const ch of text) {
+    const code = ch.charCodeAt(0) - 0xac00;
+    if (code < 0 || code > 11171) keys += jamoKeys(ch);
+    else keys += jamoKeys(CHO[Math.floor(code / 588)]) + jamoKeys(JUNG[Math.floor(code / 28) % 21]) + jamoKeys(JONG[code % 28]);
+  }
+  return keys;
+}
+
+function simulate(sentence) {
+  let chain = false;
+  return sentence.split(' ').map((word) => {
+    const intended = /^\{(.+)\}$/.exec(word);
+    const typed = intended ? toKeys(intended[1]) : word;
+    if (!/^[A-Za-z]+$/.test(typed)) {
+      chain = false; // 한글 모드(IME)로 친 단어
+      return typed;
+    }
+    const out = E.convert(typed, { chain });
+    chain = out !== null;
+    return out ?? typed;
+  }).join(' ');
+}
+
+const EVAL = [
+  // 영문 모드로 친 한국어
+  '{안녕하세요}', '{감사합니다}', '{오늘} {날씨} {진짜} {좋다}', '{뭐} {해}', '{왜} {해}', '{나도} {그래}',
+  '{배고파} {밥} {먹자}', '{회의} {시작할게요}', '{없어}', '{괜찮아}', '{빨리} {해}', '{이거} {내} {거야}',
+  '{나} {새} {차} {샀어}', '{고양이} {귀여워}', '{나} {지금} {가}', '{그럼} {내일} {봐}', '{진짜} {대박}',
+  // 반복 자모와 약어
+  '{미안ㅠㅠ}', '{그래ㅋㅋㅋ}', '{좋아ㅎㅎ}', '{어휴ㅠㅠ}', '{짱ㅠㅠ}', '{고마워ㅎㅎ}', '{ㅋㅋㅋㅋ}',
+  '{ㅇㅋ}', '{ㄱㄱ}', '{ㄳ}', '{ㅋㅋㅋ} {진짜} {웃기다}',
+  // 그대로 둬야 하는 영어
+  'hello world', 'good morning', 'this is a test', 'let me know', 'go for it', 'to do list', 'and so on',
+  'gg wp', 'thx', 'git push origin main', 'npm install', 'NASA OK', 'iPhone Seoul', 'dog cat', 'sun run fun',
+  // 한글 모드로 친 한국어 + 영어
+  '조건문 for 루프', '언어 go 써봤어', '오늘 meeting 있어', '이 db 확인해',
+  // 영문 모드 한국어와 영어가 섞임
+  '{오늘} meeting {있어}', '{조건문} for {루프}', '{감사합니다} thank you', '{안녕} hi', 'see you {내일}',
+];
+
+test('평가 묶음: 실제 입력 패턴', () => {
+  const failures = EVAL.filter((c) => simulate(c) !== c.replace(/[{}]/g, '')).map((c) => `${c} → ${simulate(c)}`);
+  assert.deepEqual(failures, []);
+});
