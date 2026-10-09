@@ -50,3 +50,35 @@ test('hangulCandidate: 구조와 상용 음절 (스펙 3.4 3–4단계)', () => 
   zzz: 'ㅋㅋㅋ', dz: 'ㅇㅋ', dzzz: 'ㅇㅋㅋㅋ', rt: 'ㄳ', rtk: null,
   dkssudz: null, dkssudzz: '안녕ㅋㅋ', zzdkssud: 'ㅋㅋ안녕',
 }));
+
+const WORDS = require('../extension/src/words.js');
+
+test('convert: 결과 예시 (스펙 3.7)', () => {
+  const rows = [
+    ['dkssudgktpdy', false, '안녕하세요'], ['dlTdj', false, '있어'], ['hello', false, null],
+    ['meeting', true, null], ['sun', true, null], ['dog', true, null], ['the', false, null],
+    ['go', false, null], ['go', true, '해'], ['for', true, null], ['gg', true, null],
+    ['zzz', false, 'ㅋㅋㅋ'], ['dz', false, 'ㅇㅋ'], ['dzzz', false, 'ㅇㅋㅋㅋ'], ['rt', false, 'ㄳ'],
+    ['NASA', false, null], ['a', false, null],
+  ];
+  for (const [token, chain, expected] of rows) assert.equal(E.convert(token, { chain }), expected, `${token} chain=${chain}`);
+});
+
+test('convert: 이 페이지에서 되돌린 토큰은 건너뛴다 (대소문자 구분)', () => {
+  assert.equal(E.convert('dkssud', { skip: new Set(['dkssud']) }), null);
+  assert.equal(E.convert('dkssud', { skip: new Set(['Dkssud']) }), '안녕');
+});
+
+test('convert: 영문자 외 글자가 섞이면 변환하지 않는다', () => {
+  for (const token of ['dkssud1', 'dk_ssud', 'dkssud!']) assert.equal(E.convert(token), null, token);
+});
+
+test('words.js: 모든 단어가 한글 후보를 낸다', () => {
+  assert.ok(WORDS.size > 0);
+  for (const word of WORDS) assert.ok(E.hangulCandidate(word), word);
+});
+
+test('words.js: 보호가 필요한 대표 단어를 포함하고 CHAIN_WORDS는 그 부분집합이다', () => {
+  for (const word of ['go', 'so', 'to', 'do', 'for', 'and', 'gg', 'gl', 'wp']) assert.ok(WORDS.has(word), word);
+  for (const word of E.CHAIN_WORDS) assert.ok(WORDS.has(word), word);
+});

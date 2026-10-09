@@ -111,10 +111,27 @@ const Eng2Kor = (() => {
     return candidates(token).find(isValid) ?? null;
   }
 
+  // 한글로도 흔히 쓰는 짧은 영어 단어. 연쇄 중에는 사전 보호를 풀어 준다 (스펙 3.4 5단계)
+  const CHAIN_WORDS = new Set(['go', 'so', 'to', 'do', 'wp', 'aka', 'rid']);
+  const WORDS = typeof ENGLISH_WORDS !== 'undefined' ? ENGLISH_WORDS : require('./words.js');
+
+  // 스펙 3.4: 토큰을 한글로 바꿀지 판정한다. 바꿀 결과 또는 null
+  function convert(token, { chain = false, skip } = {}) {
+    if (token.length < 2 || !/^[A-Za-z]+$/.test(token) || token === token.toUpperCase()) return null;
+    if (skip?.has(token)) return null;
+    const result = hangulCandidate(token);
+    if (!result) return null;
+    const lower = token.toLowerCase();
+    if (WORDS.has(lower) && !(chain && CHAIN_WORDS.has(lower))) return null;
+    return result;
+  }
+
   return {
     tables: { KEYMAP, CHO, JUNG, JONG, VOWEL_PAIRS, FINAL_PAIRS, COMMON },
     compose,
     hangulCandidate,
+    convert,
+    CHAIN_WORDS,
   };
 })();
 
