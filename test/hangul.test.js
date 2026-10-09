@@ -82,3 +82,22 @@ test('words.js: 보호가 필요한 대표 단어를 포함하고 CHAIN_WORDS는
   for (const word of ['go', 'so', 'to', 'do', 'for', 'and', 'gg', 'gl', 'wp']) assert.ok(WORDS.has(word), word);
   for (const word of E.CHAIN_WORDS) assert.ok(WORDS.has(word), word);
 });
+
+test('extractToken: 토큰 경계 (스펙 4.2)', () => {
+  const tok = (before, next, prev) => E.extractToken(before, next, prev)?.token ?? null;
+  assert.equal(tok('dkssud'), 'dkssud');
+  assert.equal(E.extractToken('안녕 dkssud').start, 3);
+  assert.equal(tok('안녕하세요rkatk'), 'rkatk');
+  assert.equal(tok('안녕,dkssud'), 'dkssud');
+  assert.equal(tok('(dkssud'), 'dkssud');
+  assert.equal(tok('“dkssud'), 'dkssud');
+  for (const before of ['user_dkssud', 'a@dkssud', 'http://dkssud', '3dkssud', 'e.g', 'well-dkssud', '#dkssud', ':dkssud']) {
+    assert.equal(tok(before), null, before);
+  }
+  for (const next of ['a', 'Z', '1', '_', '@', '/', '.', '-']) assert.equal(tok('dkssud', next), null, `next ${next}`);
+  for (const next of [' ', '안', ')', ',']) assert.equal(tok('dkssud', next), 'dkssud', `next ${next}`);
+  assert.equal(tok('dkssud', '', 'c'), null);
+  assert.equal(tok('dkssud', '', ' '), 'dkssud');
+  assert.equal(tok(''), null);
+  assert.equal(tok('안녕 '), null);
+});

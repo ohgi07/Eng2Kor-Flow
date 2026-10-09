@@ -126,11 +126,26 @@ const Eng2Kor = (() => {
     return result;
   }
 
+  // 토큰 앞에 올 수 있는 글자: 공백, 한글, 여는 괄호·따옴표, 쉼표·느낌표·물음표 (스펙 4.2)
+  const BEFORE_OK = /[\s가-힣ㄱ-ㆎ(\[{"'“‘,!?]/;
+  // 커서 뒤에 이 글자가 있으면 단어나 식별자 중간이다
+  const AFTER_BLOCK = /[A-Za-z0-9_@\/.\-]/;
+
+  function extractToken(before, next = '', prevOutside = '') {
+    const match = /[A-Za-z]+$/.exec(before);
+    if (!match) return null;
+    if (next && AFTER_BLOCK.test(next)) return null;
+    const prev = match.index > 0 ? before[match.index - 1] : prevOutside;
+    if (prev && !BEFORE_OK.test(prev)) return null;
+    return { token: match[0], start: match.index };
+  }
+
   return {
     tables: { KEYMAP, CHO, JUNG, JONG, VOWEL_PAIRS, FINAL_PAIRS, COMMON },
     compose,
     hangulCandidate,
     convert,
+    extractToken,
     CHAIN_WORDS,
   };
 })();
