@@ -243,11 +243,12 @@
     chain.set(root, outcome === 'ok');
     if (outcome !== 'ok') return;
     // input의 Enter는 전송·실행으로, Monaco의 Enter는 자동 들여쓰기·셀 실행이 섞이므로 복원 기록을 남기지 않는다
-    const kind = e.key !== 'Enter' ? 'char'
+    const kind = e.key === ' ' ? 'space'
+      : e.key !== 'Enter' ? 'char'
       : root.localName === 'textarea' ? 'newline'
       : isField(root) || isMonaco(root) ? null : 'block';
     if (!kind) return;
-    const trigger = kind === 'char' ? e.key : kind === 'newline' ? '\n' : '';
+    const trigger = kind === 'newline' ? '\n' : kind === 'block' ? '' : e.key;
     record = { root, original: hit.token, converted: hangul, kind, tail: hangul + trigger };
   }
 
@@ -255,6 +256,7 @@
   const readCaret = (root) => (isMonaco(root) ? readMonaco() : isField(root) ? readField(root) : readEditable(root));
 
   // char, newline: 커서 앞이 "변환 결과 + 트리거"면 한 번에 원문으로 되돌린다
+  // space: 첫 Backspace는 편집기에 맡겨 공백만 지우고, 바로 이어 한 번 더 누르면 되돌린다
   function revert(e, last) {
     if (isPasswordLike(last.root)) return;
     if (last.kind === 'block') {
@@ -263,6 +265,10 @@
     }
     const point = readCaret(last.root);
     if (!point || !norm(point.before).endsWith(last.tail)) return;
+    if (last.kind === 'space') {
+      record = { ...last, kind: 'char', tail: last.converted };
+      return;
+    }
     e.preventDefault();
     if (isMonaco(last.root)) e.stopPropagation(); // Monaco는 기본 동작이 막혀도 자체 처리로 지울 수 있다
     const outcome = replaceBeforeCaret(last.root, point, last.tail.length, last.original);
@@ -331,7 +337,14 @@
     if (root) chain.set(root, false);
   }
 
+  // 되돌린 뒤 사용자가 영문자를 실제로 입력하면 새로 친 단어로 보고 다시 판정한다.
+  // 확장이 보내는 합성 beforeinput은 isTrusted가 false라 여기서 걸러진다.
+  function forgetKeptOnTyping(e) {
+    if (kept && e.isTrusted && e.inputType === 'insertText' && /[A-Za-z]/.test(e.data ?? '')) kept = null;
+  }
+
   addEventListener('keydown', onKeyDown, true);
+  addEventListener('beforeinput', forgetKeptOnTyping, true);
   addEventListener('mousedown', resetFrom, true);
   addEventListener('focusin', resetFrom, true);
   addEventListener('paste', resetFrom, true);
