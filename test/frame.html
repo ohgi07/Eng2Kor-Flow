@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Eng2Kor Frame</title>
+<script>
+  // playground.html과 같은 직접 로드 모드
+  if (new URLSearchParams(location.search).has('direct')) {
+    const fakeChrome = {
+      storage: { sync: { get: (defaults, callback) => callback({ ...defaults }) }, onChanged: { addListener() {} } },
+      runtime: { onMessage: { addListener() {} } },
+    };
+    Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
+    for (const name of ['words', 'hangul', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
+  }
+</script>
+</head>
+<body style="font: 15px system-ui, sans-serif; margin: 8px">
+<label for="frame-input">iframe 안 input</label>
+<input id="frame-input" style="display: block; width: 100%; box-sizing: border-box">
+</body>
+</html>

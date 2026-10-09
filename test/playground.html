@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eng2Kor Playground</title>
+<script>
+  // ?direct=1: 확장 없이 스크립트를 직접 로드한다. 그 전에 가짜 chrome API를 둔다.
+  if (new URLSearchParams(location.search).has('direct')) {
+    const fakeChrome = {
+      storage: { sync: { get: (defaults, callback) => callback({ ...defaults }) }, onChanged: { addListener() {} } },
+      runtime: { onMessage: { addListener() {} } },
+    };
+    Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
+    for (const name of ['words', 'hangul', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
+  }
+</script>
+<style>
+  body { font: 15px/1.6 system-ui, "Malgun Gothic", sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+  section { border-top: 1px solid #ddd; padding: 12px 0; }
+  label { display: block; font-size: 13px; color: #555; margin-top: 8px; }
+  input, textarea, [contenteditable] { display: block; width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; border: 1px solid #aaa; border-radius: 4px; }
+  [contenteditable] { min-height: 3em; }
+  #chat-log { font-size: 13px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Eng2Kor Playground</h1>
+<p>영문 모드로 <code>dkssud</code>를 치고 스페이스를 누르면 "안녕"이 되어야 한다. <code>?direct=1</code>은 확장 없이 스크립트를 직접 로드한다.</p>
+
+<section>
+  <h2>변환 대상</h2>
+  <label for="plain">input (type 없음)</label><input id="plain">
+  <label for="search">input type=search</label><input id="search" type="search">
+  <label for="area">textarea</label><textarea id="area" rows="3"></textarea>
+  <label for="editor">contenteditable</label><div id="editor" contenteditable="true"></div>
+  <label for="rich">contenteditable (문단 구조)</label><div id="rich" contenteditable="true"><p>첫 문단</p></div>
+  <label for="spans">contenteditable (span 경계: abc 뒤에 붙은 단어는 변환하면 안 됨)</label><div id="spans" contenteditable="true"><span>abc</span><span>gksrmf</span></div>
+</section>
+
+<section>
+  <h2>Enter로 전송하는 채팅 (Enter: 전송 후 비움, Shift+Enter: 줄바꿈)</h2>
+  <div id="chat" contenteditable="true"></div>
+  <div id="chat-log"></div>
+</section>
+
+<section>
+  <h2>자동완성 후보 (↓로 후보 선택, Enter로 확정)</h2>
+  <input id="combo" role="combobox" aria-expanded="false" aria-controls="combo-list">
+  <ul id="combo-list" role="listbox" hidden><li id="combo-opt" role="option">추천 후보</li></ul>
+</section>
+
+<section>
+  <h2>변환하면 안 되는 칸</h2>
+  <label for="pw">type=password</label><input id="pw" type="password">
+  <label for="pw-toggle">비밀번호 보기 토글 <button id="pw-toggle-btn" type="button">보기</button></label><input id="pw-toggle" type="password">
+  <label for="pw-ac">autocomplete=current-password</label><input id="pw-ac" autocomplete="current-password">
+  <label for="pw-css">-webkit-text-security</label><input id="pw-css" style="-webkit-text-security: disc">
+  <label for="pw-name">name=user_pwd</label><input id="pw-name" name="user_pwd">
+  <label for="email">type=email</label><input id="email" type="email">
+  <label for="url">type=url</label><input id="url" type="url">
+  <label for="code">코드 에디터 (.cm-editor)</label><div class="cm-editor"><div id="code" contenteditable="true"></div></div>
+</section>
+
+<section>
+  <h2>다른 origin iframe (사이트 끄기 확인)</h2>
+  <iframe id="frame" title="cross-origin frame" style="width:100%;height:120px;border:1px solid #aaa"></iframe>
+</section>
+
+<script>
+  const direct = new URLSearchParams(location.search).has('direct') ? '?direct=1' : '';
+  document.getElementById('frame').src = `http://127.0.0.1:8081/test/frame.html${direct}`;
+
+  document.getElementById('pw-toggle-btn').addEventListener('click', () => {
+    const input = document.getElementById('pw-toggle');
+    input.type = input.type === 'password' ? 'text' : 'password';
+  });
+
+  const chat = document.getElementById('chat');
+  chat.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    e.preventDefault();
+    document.getElementById('chat-log').textContent += `전송: ${chat.textContent}\n`;
+    chat.textContent = '';
+  });
+
+  const combo = document.getElementById('combo');
+  const list = document.getElementById('combo-list');
+  combo.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      list.hidden = false;
+      combo.setAttribute('aria-expanded', 'true');
+      combo.setAttribute('aria-activedescendant', 'combo-opt');
+    } else if (e.key === 'Enter' && combo.getAttribute('aria-activedescendant')) {
+      e.preventDefault();
+      combo.value = '추천 후보';
+      combo.removeAttribute('aria-activedescendant');
+      combo.setAttribute('aria-expanded', 'false');
+      list.hidden = true;
+    }
+  });
+</script>
+</body>
+</html>
