@@ -36,3 +36,17 @@ test('compose: ㄲ ㅆ은 받침 가능, ㄸ ㅃ ㅉ는 불가', () => expectAll
 test('compose: 낱자모와 IME식 조합', () => expectAll(E.compose, {
   rt: 'ㄳ', rtk: 'ㄱ사', zz: 'ㅋㅋ', fr: 'ㄺ', k: 'ㅏ', rmfozzz: '그랰ㅋㅋ', aldksbb: '미아뉴ㅠ',
 }));
+
+test('상용 2350자 집합', () => assert.equal(E.tables.COMMON.size, 2350));
+
+test('hangulCandidate: 반복 자모 분리 (스펙 3.3)', () => expectAll(E.hangulCandidate, {
+  rmfozzz: '그래ㅋㅋㅋ', gkzzz: '하ㅋㅋㅋ', rhakdnjggg: '고마워ㅎㅎㅎ', whggg: '좋ㅎㅎ', aksggg: '많ㅎㅎ',
+  qndjzzz: '부엌ㅋㅋ', djgbbb: '어휴ㅠㅠ', sjggg: '넣ㅎㅎ', aldksbb: '미안ㅠㅠ', Wkdbb: '짱ㅠㅠ',
+  dkzzz: '아ㅋㅋㅋ', rmfoz: null,
+}));
+
+test('hangulCandidate: 구조와 상용 음절 (스펙 3.4 3–4단계)', () => expectAll(E.hangulCandidate, {
+  dkssudgktpdy: '안녕하세요', hello: null, meeting: null, sun: null, dog: null, the: null,
+  zzz: 'ㅋㅋㅋ', dz: 'ㅇㅋ', dzzz: 'ㅇㅋㅋㅋ', rt: 'ㄳ', rtk: null,
+  dkssudz: null, dkssudzz: '안녕ㅋㅋ', zzdkssud: 'ㅋㅋ안녕',
+}));

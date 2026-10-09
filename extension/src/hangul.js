@@ -77,9 +77,44 @@ const Eng2Kor = (() => {
     return out;
   }
 
+  // KS X 1001 상용 2350자: EUC-KR 한글 영역을 한 번 디코딩해 만든다 (스펙 3.5)
+  const COMMON = (() => {
+    const bytes = [];
+    for (let hi = 0xb0; hi <= 0xc8; hi++) for (let lo = 0xa1; lo <= 0xfe; lo++) bytes.push(hi, lo);
+    return new Set(new TextDecoder('euc-kr').decode(new Uint8Array(bytes)));
+  })();
+  const EXPRESSIVE = new Set(['ㅋ', 'ㅎ', 'ㅠ', 'ㅜ']);
+  const ABBREVIATIONS = ['ㅇㅋ', 'ㅇㅇ', 'ㄴㄴ', 'ㄱㄱ', 'ㄳ', 'ㅅㄱ', 'ㅂㅂ', 'ㅊㅋ', 'ㅎㅇ', 'ㄷㄷ', 'ㅈㅅ', 'ㄹㅇ', 'ㅇㅈ'];
+  const isSyllable = (ch) => ch >= '가' && ch <= '힣';
+
+  // 스펙 3.4의 3단계(구조)와 4단계(상용 음절)
+  function isValid(text) {
+    if (![...text].some(isSyllable)) {
+      const abbr = ABBREVIATIONS.find((a) => text.startsWith(a));
+      if (abbr && [...text.slice(abbr.length)].every((ch) => EXPRESSIVE.has(ch))) return true;
+    }
+    for (const run of text.match(/([^가-힣])\1*/g) ?? []) {
+      if (!EXPRESSIVE.has(run[0]) || run.length < 2) return false;
+    }
+    return [...text].filter(isSyllable).every((ch) => COMMON.has(ch));
+  }
+
+  // 후보 A: 전체 조합. 후보 B: 끝의 같은 표현 자모 키 반복(2회 이상)을 떼어 낱자모로 붙임 (스펙 3.3)
+  function candidates(token) {
+    const list = [compose(token)];
+    const run = /(?:z{2,}|g{2,}|b{2,}|n{2,})$/i.exec(token);
+    if (run) list.push(compose(token.slice(0, run.index)) + KEYMAP[run[0][0].toLowerCase()].repeat(run[0].length));
+    return list;
+  }
+
+  function hangulCandidate(token) {
+    return candidates(token).find(isValid) ?? null;
+  }
+
   return {
-    tables: { KEYMAP, CHO, JUNG, JONG, VOWEL_PAIRS, FINAL_PAIRS },
+    tables: { KEYMAP, CHO, JUNG, JONG, VOWEL_PAIRS, FINAL_PAIRS, COMMON },
     compose,
+    hangulCandidate,
   };
 })();
 
