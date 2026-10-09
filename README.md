@@ -29,18 +29,18 @@ node scripts/serve.mjs      # http://127.0.0.1:8080/test/playground.html (?direc
 
 2026-10-10, 크롬에서 확인했습니다.
 
-| 사이트 | 편집기 | 스페이스 | 유지 | Enter | 복원 | Ctrl+Z |
-|---|---|---|---|---|---|---|
-| 구글 검색 | textarea | ✅ | ✅ | ✅ 검색어 변환 | ✅ | ✅ |
-| 유튜브 댓글 | contenteditable | ✅ | ✅ | - | ✅ | ✅ |
-| GitHub 이슈 본문 | textarea | ✅ | ✅ | ✅ 줄바꿈 | ✅ | ✅ |
-| Gmail 본문 | contenteditable | ✅ | ✅ | ✅ 줄바꿈 | ✅ | ✅ 여러 단계를 한 번에 되돌림 |
-| ChatGPT | ProseMirror | ✅ | ✅ | ✅ 변환 후 전송 | ✅ | ✅ 빠른 입력은 한 번에 되돌림 |
-| Claude | ProseMirror | ✅ | ✅ | ✅ 변환 후 전송 | ✅ | ✅ 빠른 입력은 한 번에 되돌림 |
-| Discord | Slate | ✅ | ✅ | ✅ 변환 후 전송 | ✅ | ✅ |
-| Colab 텍스트 셀 | Monaco | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Colab 코드 셀 | Monaco | ✅ 주석·문자열 안만 | ✅ | ✅ | ✅ | ✅ |
-| 네이버 검색, Slack, Notion | | 미확인 | | | | |
+| 사이트 | 편집기 | 스페이스 | 유지 | Enter | 복원 | Ctrl+Z | 미리보기 |
+|---|---|---|---|---|---|---|---|
+| 구글 검색 | textarea | ✅ | ✅ | ✅ 검색어 변환 | ✅ | ✅ | ✅ 자동완성 목록 위에 보임 |
+| 유튜브 댓글 | contenteditable | ✅ | ✅ | - | ✅ | ✅ | |
+| GitHub 이슈 본문 | textarea | ✅ | ✅ | ✅ 줄바꿈 | ✅ | ✅ | |
+| Gmail 본문 | contenteditable | ✅ | ✅ | ✅ 줄바꿈 | ✅ | ✅ 여러 단계를 한 번에 되돌림 | ✅ |
+| ChatGPT | ProseMirror | ✅ | ✅ | ✅ 변환 후 전송 | ✅ | ✅ 빠른 입력은 한 번에 되돌림 | ✅ |
+| Claude | ProseMirror | ✅ | ✅ | ✅ 변환 후 전송 | ✅ | ✅ 빠른 입력은 한 번에 되돌림 | |
+| Discord | Slate | ✅ | ✅ | ✅ 변환 후 전송 | ✅ | ✅ | ✅ 입력창 위로 |
+| Colab 텍스트 셀 | Monaco | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Colab 코드 셀 | Monaco | ✅ 주석·문자열 안만 | ✅ | ✅ | ✅ | ✅ | ✅ 주석·문자열 안만 |
+| 네이버 검색, Slack, Notion | | 미확인 | | | | | |
 
 ## 알려진 한계
 
