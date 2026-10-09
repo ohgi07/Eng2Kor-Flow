@@ -156,6 +156,8 @@
   }
 
   // contenteditable: 커서 바로 앞 len글자를 text로 바꾼다. 실패하면 커서를 원래대로 돌린다.
+  // 자체 모델을 쓰는 편집기(Slate 등)는 execCommand가 내지 않는 beforeinput으로만 모델을 고치므로,
+  // 먼저 바꿀 범위를 담은 beforeinput을 보낸다. 편집기가 처리하면(preventDefault) 그것으로 끝이다.
   function replaceInEditable(root, point, len, text) {
     const sel = selectionOf(root);
     const { node, offset } = point;
@@ -165,6 +167,11 @@
     range.setEnd(node, offset);
     sel.removeAllRanges();
     sel.addRange(range);
+    const handled = !node.parentElement.dispatchEvent(new InputEvent('beforeinput', {
+      inputType: 'insertText', data: text, bubbles: true, cancelable: true, composed: true,
+      targetRanges: [new StaticRange({ startContainer: node, startOffset: offset - len, endContainer: node, endOffset: offset })],
+    }));
+    if (handled) return 'ok';
     document.execCommand('insertText', false, text);
     if (node.isConnected && node.data === original) {
       sel.collapse(node, offset);

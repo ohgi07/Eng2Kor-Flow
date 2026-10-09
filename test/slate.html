@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eng2Kor Slate</title>
+<script>
+  // playground.html과 같은 직접 로드 모드
+  if (new URLSearchParams(location.search).has('direct')) {
+    const fakeChrome = {
+      storage: { sync: { get: (defaults, callback) => callback({ ...defaults }) }, onChanged: { addListener() {} } },
+      runtime: { onMessage: { addListener() {} } },
+    };
+    Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
+    for (const name of ['words', 'hangul', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
+  }
+</script>
+<style>
+  body { font: 15px/1.6 system-ui, "Malgun Gothic", sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+  #editor [contenteditable] { border: 1px solid #aaa; border-radius: 4px; padding: 6px 8px; min-height: 3em; }
+  #log { font-size: 13px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Eng2Kor Slate</h1>
+<p>Discord 입력창과 같은 Slate 편집기. Enter는 전송(로그에 모델 텍스트를 남기고 비움), Shift+Enter는 줄바꿈.</p>
+<div id="editor"></div>
+<div id="log"></div>
+<script type="module">
+  import React from 'https://esm.sh/react@18.3.1';
+  import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
+  import { createEditor, Editor, Node, Transforms } from 'https://esm.sh/slate@0.103.0';
+  import { Slate, Editable, withReact } from 'https://esm.sh/slate-react@0.102.0?deps=react@18.3.1,react-dom@18.3.1,slate@0.103.0';
+
+  const editor = withReact(createEditor());
+  const empty = [{ type: 'paragraph', children: [{ text: '' }] }];
+  // 확인용: 모델 텍스트 (문단은 줄바꿈으로 잇는다)
+  window.slateText = () => editor.children.map((n) => Node.string(n)).join('\n');
+
+  function send(e) {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    e.preventDefault();
+    document.getElementById('log').textContent += `전송: ${window.slateText()}\n`;
+    Transforms.delete(editor, { at: { anchor: Editor.start(editor, []), focus: Editor.end(editor, []) } });
+  }
+
+  const App = () => React.createElement(Slate, { editor, initialValue: empty },
+    React.createElement(Editable, { id: 'slate', onKeyDown: send, placeholder: '메시지 보내기' }));
+  createRoot(document.getElementById('editor')).render(React.createElement(App));
+</script>
+</body>
+</html>
