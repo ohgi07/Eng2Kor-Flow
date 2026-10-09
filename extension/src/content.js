@@ -1,4 +1,4 @@
-// Eng2Kor Flow — 입력 감지와 교체 (콘텐츠 스크립트). manifest에서 words.js, hangul.js 다음에 로드된다.
+// Eng2Kor Flow — 입력 감지·교체·복원 (콘텐츠 스크립트). manifest에서 words.js, hangul.js 다음에 로드된다.
 (() => {
   'use strict';
 
@@ -17,6 +17,8 @@
   const chain = new WeakMap(); // 편집 루트 → 직전 단어를 이 확장이 변환했는가
   const wasPassword = new WeakSet(); // 한 번이라도 type=password였던 요소
   let composing = false;
+  let record = null; // 마지막 변환 (복원용, 스펙 4.6)
+  let pendingBlock = null; // block 복원 사후 검사 대기
 
   // ── 사이트와 설정 ──
   const isTop = window.top === window;
@@ -190,14 +192,72 @@
     const hangul = convert(hit.token, { chain: chain.get(root) === true, skip });
     const outcome = hangul ? replaceBeforeCaret(root, point, hit.token.length, hangul) : null;
     chain.set(root, outcome === 'ok');
+    if (outcome !== 'ok') return;
+    // input의 Enter는 전송·실행으로 보고 복원 기록을 남기지 않는다
+    const kind = e.key !== 'Enter' ? 'char' : root.localName === 'textarea' ? 'newline' : isField(root) ? null : 'block';
+    if (!kind) return;
+    const trigger = kind === 'char' ? e.key : kind === 'newline' ? '\n' : '';
+    record = { root, original: hit.token, converted: hangul, kind, tail: hangul + trigger };
+  }
+
+  // ── 복원 (스펙 4.6) ──
+  const readCaret = (root) => (isField(root) ? readField(root) : readEditable(root));
+
+  // char, newline: 커서 앞이 "변환 결과 + 트리거"면 한 번에 원문으로 되돌린다
+  function revert(e, last) {
+    if (isPasswordLike(last.root)) return;
+    if (last.kind === 'block') {
+      armBlockRevert(last);
+      return;
+    }
+    const point = readCaret(last.root);
+    if (!point || !norm(point.before).endsWith(last.tail)) return;
+    e.preventDefault();
+    finishRevert(last, replaceBeforeCaret(last.root, point, last.tail.length, last.original));
+  }
+
+  function finishRevert(last, outcome) {
+    if (outcome !== 'ok') return;
+    skip.add(last.original);
+    chain.set(last.root, false);
+  }
+
+  // block: 편집기가 문단 경계를 지운 뒤, 커서가 변환 결과 바로 뒤로 왔을 때만 되돌린다
+  function armBlockRevert(last) {
+    const { root } = last;
+    const pre = readEditable(root);
+    if (pre && norm(pre.before).endsWith(last.converted)) return; // 이미 변환 결과 뒤(전송 후 남은 경우 등)
+    const state = {};
+    const check = () => {
+      if (pendingBlock !== state) return;
+      pendingBlock = null;
+      clearTimeout(state.timer);
+      if (isPasswordLike(root)) return;
+      const post = readEditable(root);
+      if (!post || !norm(post.before).endsWith(last.converted)) return;
+      finishRevert(last, replaceInEditable(root, post, last.converted.length, last.original));
+    };
+    pendingBlock = state;
+    state.timer = setTimeout(check, 100);
+    root.addEventListener('input', () => setTimeout(check, 0), { capture: true, once: true });
   }
 
   // ── 이벤트 ──
   function onKeyDown(e) {
     if (!e.isTrusted) return;
+    if (pendingBlock) {
+      clearTimeout(pendingBlock.timer);
+      pendingBlock = null;
+    }
+    const last = record;
+    record = null;
     const root = rootFrom(e.composedPath()[0]);
     if (!root) return;
     const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
+    if (last?.root === root && e.key === 'Backspace' && plain && !e.repeat && !e.isComposing) {
+      revert(e, last);
+      return;
+    }
     if (!plain || NAV_KEYS.has(e.key)) {
       chain.set(root, false);
       return;
@@ -209,6 +269,7 @@
   }
 
   function resetFrom(e) {
+    record = null;
     const root = rootFrom(e.composedPath()[0]);
     if (root) chain.set(root, false);
   }
