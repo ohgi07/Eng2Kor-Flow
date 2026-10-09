@@ -125,6 +125,20 @@ const Eng2Kor = (() => {
     return result;
   }
 
+  // 미리보기 판정 (미리보기 스펙 2절). 지금 트리거를 누르면 바뀔 결과는 pending ''로,
+  // 마지막 자음이 다음 음절 초성이 될 수도 있는 조합 중 상태는 앞부분 결과 + 그 자음 낱자로 돌려준다
+  const isConsonant = (jamo) => jamo >= 'ㄱ' && jamo <= 'ㅎ';
+
+  function preview(token, { chain = false } = {}) {
+    const full = convert(token, { chain });
+    if (full) return { text: full, pending: '' };
+    const key = token.slice(-1);
+    const last = KEYMAP[key] ?? KEYMAP[key.toLowerCase()];
+    if (!last || !isConsonant(last)) return null;
+    const head = convert(token.slice(0, -1), { chain });
+    return head ? { text: head, pending: last } : null;
+  }
+
   // 토큰 앞에 올 수 있는 글자: 공백, 한글, 여는 괄호·따옴표, 쉼표·느낌표·물음표 (스펙 4.2)
   const BEFORE_OK = /[\s가-힣ㄱ-ㆎ(\[{"'“‘,!?]/;
   // 커서 뒤에 이 글자가 있으면 단어나 식별자 중간이다
@@ -144,6 +158,7 @@ const Eng2Kor = (() => {
     compose,
     hangulCandidate,
     convert,
+    preview,
     extractToken,
     CHAIN_WORDS,
   };

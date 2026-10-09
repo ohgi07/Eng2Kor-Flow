@@ -68,6 +68,21 @@ test('convert: 영문자 외 글자가 섞이면 변환하지 않는다', () => 
   for (const token of ['dkssud1', 'dk_ssud', 'dkssud!']) assert.equal(E.convert(token), null, token);
 });
 
+test('preview: 확정·조합 중·없음 (미리보기 스펙 2절)', () => {
+  const rows = [
+    ['dkssud', false, { text: '안녕', pending: '' }],
+    ['dlT', false, { text: '있', pending: '' }],
+    ['dkss', false, { text: '안', pending: 'ㄴ' }],
+    ['rkatkgkqs', false, { text: '감사합', pending: 'ㄴ' }],
+    ['rmfoz', false, { text: '그래', pending: 'ㅋ' }],
+    ['what', false, { text: '좀', pending: 'ㅅ' }],
+    ['wlsW', false, { text: '진', pending: 'ㅉ' }],
+    ['with', false, null], ['hello', false, null], ['a', false, null], ['NASA', false, null], ['', false, null],
+    ['go', false, null], ['go', true, { text: '해', pending: '' }],
+  ];
+  for (const [token, chain, expected] of rows) assert.deepEqual(E.preview(token, { chain }), expected, `${token} chain=${chain}`);
+});
+
 test('words.js: 모든 단어가 한글 후보를 낸다', () => {
   assert.ok(WORDS.size > 0);
   for (const word of WORDS) assert.ok(E.hangulCandidate(word), word);
@@ -148,4 +163,22 @@ const EVAL = [
 test('평가 묶음: 실제 입력 패턴', () => {
   const failures = EVAL.filter((c) => simulate(c) !== c.replace(/[{}]/g, '')).map((c) => `${c} → ${simulate(c)}`);
   assert.deepEqual(failures, []);
+});
+
+test('preview: 확정이면 convert와 같고, convert가 결과를 내면 확정이다', () => {
+  for (const sentence of EVAL) {
+    for (const word of sentence.split(' ')) {
+      const intended = /^\{(.+)\}$/.exec(word);
+      const typed = intended ? toKeys(intended[1]) : word;
+      for (let i = 1; i <= typed.length; i++) {
+        for (const chain of [false, true]) {
+          const token = typed.slice(0, i);
+          const shown = E.preview(token, { chain });
+          const converted = E.convert(token, { chain });
+          if (converted) assert.deepEqual(shown, { text: converted, pending: '' }, `${token} chain=${chain}`);
+          else if (shown) assert.notEqual(shown.pending, '', `${token} chain=${chain}`);
+        }
+      }
+    }
+  }
 });
