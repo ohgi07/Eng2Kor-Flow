@@ -1,5 +1,4 @@
-// Eng2Kor Flow — 두벌식 조합과 변환 판정. DOM·크롬 API에 의존하지 않는 순수 로직이다.
-// 콘텐츠 스크립트에서는 전역 Eng2Kor로, Node(테스트·생성 스크립트)에서는 require로 쓴다.
+// 두벌식 조합과 변환 판정. 콘텐츠 스크립트에서는 전역 Eng2Kor로, Node에서는 require로 쓴다.
 const Eng2Kor = (() => {
   'use strict';
 
@@ -18,9 +17,7 @@ const Eng2Kor = (() => {
     'ㄹㅅ': 'ㄽ', 'ㄹㅌ': 'ㄾ', 'ㄹㅍ': 'ㄿ', 'ㄹㅎ': 'ㅀ', 'ㅂㅅ': 'ㅄ',
   };
   const FINAL_SPLIT = Object.fromEntries(Object.entries(FINAL_PAIRS).map(([pair, jamo]) => [jamo, [...pair]]));
-  const isVowel = (jamo) => JUNG.includes(jamo);
 
-  // 영문 키 입력을 두벌식 규칙으로 조합한다 (스펙 3.2)
   function compose(keys) {
     let out = '';
     let cho = '';
@@ -36,7 +33,7 @@ const Eng2Kor = (() => {
       if (!jamo) {
         flush();
         out += key;
-      } else if (isVowel(jamo)) {
+      } else if (JUNG.includes(jamo)) {
         if (jong) {
           // 받침 넘어가기: 겹받침이면 뒤 자음만 넘어간다
           const split = FINAL_SPLIT[jong];
@@ -77,7 +74,7 @@ const Eng2Kor = (() => {
     return out;
   }
 
-  // KS X 1001 상용 2350자: EUC-KR 한글 영역을 한 번 디코딩해 만든다 (스펙 3.5)
+  // KS X 1001 상용 2350자: EUC-KR 한글 영역
   const COMMON = (() => {
     const bytes = [];
     for (let hi = 0xb0; hi <= 0xc8; hi++) for (let lo = 0xa1; lo <= 0xfe; lo++) bytes.push(hi, lo);
@@ -87,59 +84,51 @@ const Eng2Kor = (() => {
   const ABBREVIATIONS = ['ㅇㅋ', 'ㅇㅇ', 'ㄴㄴ', 'ㄱㄱ', 'ㄳ', 'ㅅㄱ', 'ㅂㅂ', 'ㅊㅋ', 'ㅎㅇ', 'ㄷㄷ', 'ㅈㅅ', 'ㄹㅇ', 'ㅇㅈ'];
   const isSyllable = (ch) => ch >= '가' && ch <= '힣';
 
-  // 스펙 3.4의 3단계(구조)와 4단계(상용 음절)
   function isValid(text) {
-    if (![...text].some(isSyllable)) {
+    if (!/[가-힣]/.test(text)) {
       const abbr = ABBREVIATIONS.find((a) => text.startsWith(a));
       if (abbr && [...text.slice(abbr.length)].every((ch) => EXPRESSIVE.has(ch))) return true;
     }
     for (const run of text.match(/([^가-힣])\1*/g) ?? []) {
       if (!EXPRESSIVE.has(run[0]) || run.length < 2) return false;
     }
-    return [...text].filter(isSyllable).every((ch) => COMMON.has(ch));
-  }
-
-  // 후보 A: 전체 조합. 후보 B: 끝의 같은 표현 자모 키 반복(2회 이상)을 떼어 낱자모로 붙임 (스펙 3.3)
-  function candidates(token) {
-    const list = [compose(token)];
-    const run = /(?:z{2,}|g{2,}|b{2,}|n{2,})$/i.exec(token);
-    if (run) list.push(compose(token.slice(0, run.index)) + KEYMAP[run[0][0].toLowerCase()].repeat(run[0].length));
-    return list;
+    for (const ch of text) if (isSyllable(ch) && !COMMON.has(ch)) return false;
+    return true;
   }
 
   function hangulCandidate(token) {
-    return candidates(token).find(isValid) ?? null;
+    const full = compose(token);
+    if (isValid(full)) return full;
+    // 전체 조합이 안 되면 끝의 반복 표현 자모를 분리한다.
+    const run = /(?:z{2,}|g{2,}|b{2,}|n{2,})$/i.exec(token);
+    if (!run) return null;
+    const split = compose(token.slice(0, run.index)) + KEYMAP[run[0][0].toLowerCase()].repeat(run[0].length);
+    return isValid(split) ? split : null;
   }
 
-  // 한글로도 흔히 쓰는 짧은 영어 단어. 연쇄 중에는 사전 보호를 풀어 준다 (스펙 3.4 5단계)
+  // 한글로도 흔히 쓰는 짧은 영어 단어는 연쇄 중에 사전 보호를 푼다.
   const CHAIN_WORDS = new Set(['go', 'so', 'to', 'do', 'wp', 'aka', 'rid']);
   const WORDS = typeof ENGLISH_WORDS !== 'undefined' ? ENGLISH_WORDS : require('./words.js');
 
-  // 스펙 3.4: 토큰을 한글로 바꿀지 판정한다. 바꿀 결과 또는 null
   function convert(token, { chain = false } = {}) {
     if (token.length < 2 || !/^[A-Za-z]+$/.test(token) || token === token.toUpperCase()) return null;
-    const result = hangulCandidate(token);
-    if (!result) return null;
     const lower = token.toLowerCase();
     if (WORDS.has(lower) && !(chain && CHAIN_WORDS.has(lower))) return null;
-    return result;
+    return hangulCandidate(token);
   }
 
-  // 미리보기 판정 (미리보기 스펙 2절). 지금 트리거를 누르면 바뀔 결과는 pending ''로,
-  // 마지막 자음이 다음 음절 초성이 될 수도 있는 조합 중 상태는 앞부분 결과 + 그 자음 낱자로 돌려준다
-  const isConsonant = (jamo) => jamo >= 'ㄱ' && jamo <= 'ㅎ';
-
+  // 다음 음절의 초성이 될 수 있는 마지막 자음은 pending으로 분리한다.
   function preview(token, { chain = false } = {}) {
     const full = convert(token, { chain });
     if (full) return { text: full, pending: '' };
     const key = token.slice(-1);
     const last = KEYMAP[key] ?? KEYMAP[key.toLowerCase()];
-    if (!last || !isConsonant(last)) return null;
+    if (!last || last < 'ㄱ' || last > 'ㅎ') return null;
     const head = convert(token.slice(0, -1), { chain });
     return head ? { text: head, pending: last } : null;
   }
 
-  // 토큰 앞에 올 수 있는 글자: 공백, 한글, 여는 괄호·따옴표, 쉼표·느낌표·물음표 (스펙 4.2)
+  // 토큰 앞에 올 수 있는 글자: 공백, 한글, 여는 괄호·따옴표, 쉼표·느낌표·물음표
   const BEFORE_OK = /[\s가-힣ㄱ-ㆎ(\[{"'“‘,!?]/;
   // 커서 뒤에 이 글자가 있으면 단어나 식별자 중간이다
   const AFTER_BLOCK = /[A-Za-z0-9_@\/.\-]/;

@@ -1,4 +1,4 @@
-// Eng2Kor Flow — 입력 감지·교체·복원 (콘텐츠 스크립트). manifest에서 words.js, hangul.js 다음에 로드된다.
+// 입력 감지·교체·복원·미리보기. manifest에서 words.js, hangul.js, preview.js 다음에 로드된다.
 (() => {
   'use strict';
 
@@ -8,24 +8,23 @@
   const DEFAULTS = { enabled: true, disabledSites: [], preview: true };
   const TRIGGERS = new Set([' ', 'Enter', '.', ',', '!', '?', ';', ':', ')', ']', '}', "'", '"', '~']);
   const NAV_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
-  const TYPING_GRACE = 300; // 타이핑 직후 이 시간(ms) 안의 selectionchange도 타이핑으로 본다 (Slate처럼 늦게 그리는 편집기)
+  const TYPING_GRACE = 300; // 늦게 그리는 편집기의 selectionchange도 타이핑으로 본다.
   const TEXT_TYPES = new Set(['text', 'search']);
   const CODE_EDITORS = '.cm-editor, .CodeMirror, .monaco-editor, .ace_editor';
-  // 긴급 차단 목록. 구글 문서는 키 입력 추적 모드를 구현하기 전까지 막는다.
+  // 구글 문서는 DOM에서 글자를 읽을 수 없어 키 입력 추적 방식을 만들기 전까지 막는다.
   const UNSUPPORTED_HOSTS = new Set(['docs.google.com']);
-  // Monaco 편집기를 monaco.js(MAIN world)를 통해 다루는 사이트. manifest의 monaco.js 대상과 같아야 한다.
+  // manifest의 monaco.js 대상과 같아야 한다.
   const MONACO_HOSTS = new Set(['colab.research.google.com']);
   const monacoHost = MONACO_HOSTS.has(location.hostname);
 
   const settings = { ...DEFAULTS, loaded: false };
-  // 방금 되돌린 단어 { root, token, at(그 단어 끝 위치) }. 커서가 그 자리에 있는 동안은 다시 바꾸지 않는다 (메모리에만 둔다).
+  // 되돌린 단어 { root, token, at: 단어 끝 위치 }는 그 자리에서 다시 바꾸지 않는다.
   let kept = null;
   const chain = new WeakMap(); // 편집 루트 → 직전 단어를 이 확장이 변환했는가
   const wasPassword = new WeakSet(); // 한 번이라도 type=password였던 요소
   let composing = false;
-  let record = null; // 마지막 변환 (복원용, 스펙 4.6)
+  let record = null; // 마지막 변환 (복원용)
   let pendingBlock = null; // block 복원 사후 검사 대기
-  // 미리보기 (미리보기 스펙 3–5절)
   let previewFrame = 0; // 예약된 requestAnimationFrame
   let previewRoot = null; // 말풍선을 띄운 편집 루트. null이면 숨긴 상태
   let previewSerial = 0; // 편집 루트가 바뀔 때마다 늘린다 (말풍선 위/아래 유지 키)
@@ -47,7 +46,7 @@
   const loadSettings = () =>
     chrome.storage.sync.get(DEFAULTS, (values) => {
       Object.assign(settings, values, { loaded: true });
-      schedulePreview(false); // 보이는 중이면 새 설정으로 다시 판정한다 (꺼졌으면 숨는다)
+      schedulePreview(false);
     });
   loadSettings();
   chrome.storage.onChanged.addListener((_changes, area) => {
@@ -64,18 +63,18 @@
     settings.loaded && settings.enabled && !!topHost &&
     !settings.disabledSites.includes(topHost) && !UNSUPPORTED_HOSTS.has(topHost);
 
-  // ── 비밀번호와 제외 대상 (스펙 4.4, 4.5) ──
+  // ── 비밀번호와 제외 대상 ──
   new MutationObserver((mutations) => {
     for (const m of mutations) if (m.oldValue?.toLowerCase() === 'password') wasPassword.add(m.target);
   }).observe(document, { subtree: true, attributes: true, attributeFilter: ['type'], attributeOldValue: true });
 
-  function isPasswordLike(el) {
+  function isPasswordLike(el, style) {
     if (el.localName === 'input' && el.type === 'password') return true;
     if (wasPassword.has(el)) return true;
     if (/current-password|new-password|one-time-code/i.test(el.getAttribute('autocomplete') ?? '')) return true;
-    const security = getComputedStyle(el).webkitTextSecurity;
-    if (security && security !== 'none') return true;
-    return /pass|pwd/i.test(`${el.getAttribute('name') ?? ''} ${el.id}`);
+    if (/pass|pwd/i.test(`${el.getAttribute('name') ?? ''} ${el.id}`)) return true;
+    const security = (style ?? getComputedStyle(el)).webkitTextSecurity;
+    return !!security && security !== 'none';
   }
 
   function isExcluded(el) {
@@ -85,7 +84,7 @@
     return el.closest(CODE_EDITORS) !== null;
   }
 
-  // ── 편집 대상 (스펙 4.3) ──
+  // ── 편집 대상 ──
   const isField = (el) => el.localName === 'input' || el.localName === 'textarea';
   const isMonaco = (el) => monacoHost && el.classList.contains('monaco-editor');
   const norm = (text) => text.replace(/\u00a0/g, ' ');
@@ -101,11 +100,11 @@
     return el;
   }
 
-  // input/textarea: 커서 앞뒤 읽기
   function readField(el) {
-    if (el.selectionStart == null || el.selectionStart !== el.selectionEnd) return null;
     const caret = el.selectionEnd;
-    return { before: el.value.slice(0, caret), next: el.value.charAt(caret), prevOutside: '' };
+    if (caret == null || el.selectionStart !== caret) return null;
+    const value = el.value;
+    return { before: value.slice(0, caret), next: value.charAt(caret), prevOutside: '' };
   }
 
   // input/textarea: 커서 바로 앞 len글자를 text로 바꾼다. 실패하면 커서를 원래대로 돌린다.
@@ -166,9 +165,7 @@
     return '';
   }
 
-  // contenteditable: 커서 바로 앞 len글자를 text로 바꾼다. 실패하면 커서를 원래대로 돌린다.
-  // 자체 모델을 쓰는 편집기(Slate 등)는 execCommand가 내지 않는 beforeinput으로만 모델을 고치므로,
-  // 먼저 바꿀 범위를 담은 beforeinput을 보낸다. 편집기가 처리하면(preventDefault) 그것으로 끝이다.
+  // Slate 등은 beforeinput으로 모델을 갱신한다. 취소되지 않았을 때만 execCommand를 쓴다.
   function replaceInEditable(root, point, len, text) {
     const sel = selectionOf(root);
     const { node, offset } = point;
@@ -192,8 +189,7 @@
     return after && norm(after.before).endsWith(text) ? 'ok' : 'unexpected';
   }
 
-  // Monaco(Colab): monaco.js와 document 이벤트로 주고받는다. 이벤트 처리는 동기라 바로 답을 받는다.
-  // 실행 환경 사이에는 객체가 넘어가지 않으므로 detail은 문자열 JSON만 쓴다.
+  // Monaco MAIN world와 동기 이벤트로 통신한다. detail은 JSON 문자열이다.
   let monacoReply = null;
   if (monacoHost) document.addEventListener('eng2kor:monaco-reply', (e) => { monacoReply = e.detail; });
 
@@ -215,9 +211,6 @@
     return { before: res.before, next: res.next, prevOutside: '' };
   }
 
-  const replaceInMonaco = (point, len, text) =>
-    callMonaco({ op: 'edit', len, text, expected: point.before.slice(-len) }) ?? 'unchanged';
-
   function readPoint(root) {
     if (isMonaco(root)) return readMonaco();
     if (isField(root)) return readField(root);
@@ -229,12 +222,11 @@
   }
 
   function replaceBeforeCaret(root, point, len, text) {
-    if (isMonaco(root)) return replaceInMonaco(point, len, text);
+    if (isMonaco(root)) return callMonaco({ op: 'edit', len, text, expected: point.before.slice(-len) }) ?? 'unchanged';
     return isField(root) ? replaceInField(root, len, text) : replaceInEditable(root, point, len, text);
   }
 
   // ── 변환 ──
-  // 방금 되돌린 단어의 그 자리인가. 그 자리에서는 바꾸지도, 미리 보여 주지도 않는다
   const atKept = (root, hit, point) =>
     kept?.root === root && kept.token === hit.token && kept.at === point.before.length;
 
@@ -242,12 +234,11 @@
     const point = readPoint(root);
     if (!point) return;
     const hit = extractToken(point.before, point.next, point.prevOutside);
-    // 되돌린 단어 바로 뒤(같은 자리)에서 누른 트리거는 그대로 둔다
     if (hit && atKept(root, hit, point)) {
       chain.set(root, false);
       return;
     }
-    kept = null; // 다른 자리로 넘어가면 잊는다. 같은 단어를 나중에 다시 치면 다시 바꾼다.
+    kept = null;
     if (!hit) {
       if (/[A-Za-z]$/.test(point.before)) chain.set(root, false);
       return;
@@ -266,17 +257,18 @@
     record = { root, original: hit.token, converted: hangul, kind, tail: hangul + trigger };
   }
 
-  // ── 미리보기 (미리보기 스펙 3–5절) ──
+  // ── 미리보기 ──
   function activeRoot() {
     let el = document.activeElement;
     while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
     return el ? rootFrom(el) : null;
   }
 
-  // 지금 트리거를 누를 때와 같은 입력·상태로 판정한다. 띄울 것이 없으면 null
   function previewAt(root) {
     if (!settings.preview || !siteActive() || composing) return null;
-    if (isPasswordLike(root) || isExcluded(root)) return null;
+    if (isExcluded(root)) return null;
+    const style = getComputedStyle(root);
+    if (isPasswordLike(root, style)) return null;
     const point = readPoint(root);
     const hit = point && extractToken(point.before, point.next, point.prevOutside);
     if (!hit || atKept(root, hit, point)) return null;
@@ -284,9 +276,9 @@
     if (!result) return null;
     const end = point.before.length;
     const anchors = isMonaco(root) ? callMonaco({ op: 'rect', len: hit.token.length })
-      : isField(root) ? bubble.fieldAnchors(root, hit.start, end)
+      : isField(root) ? bubble.fieldAnchors(root, hit.start, end, style)
       : bubble.rangeAnchors(point.node, hit.start, end);
-    const anchor = bubble.pickAnchor(root, anchors);
+    const anchor = bubble.pickAnchor(root, anchors, style);
     return anchor && { anchor, result, start: hit.start };
   }
 
@@ -337,26 +329,25 @@
     markTyping();
   }
 
-  // ── 복원 (스펙 4.6) ──
-  const readCaret = (root) => (isMonaco(root) ? readMonaco() : isField(root) ? readField(root) : readEditable(root));
-
+  // ── 복원 ──
   // char, newline: 커서 앞이 "변환 결과 + 트리거"면 한 번에 원문으로 되돌린다
   // space: 첫 Backspace는 편집기에 맡겨 공백만 지우고, 바로 이어 한 번 더 누르면 되돌린다
   function revert(e, last) {
-    if (isPasswordLike(last.root)) return;
+    const { root } = last;
+    if (isPasswordLike(root)) return;
     if (last.kind === 'block') {
       armBlockRevert(last);
       return;
     }
-    const point = readCaret(last.root);
+    const point = isMonaco(root) ? readMonaco() : isField(root) ? readField(root) : readEditable(root);
     if (!point || !norm(point.before).endsWith(last.tail)) return;
     if (last.kind === 'space') {
       record = { ...last, kind: 'char', tail: last.converted };
       return;
     }
     e.preventDefault();
-    if (isMonaco(last.root)) e.stopPropagation(); // Monaco는 기본 동작이 막혀도 자체 처리로 지울 수 있다
-    const outcome = replaceBeforeCaret(last.root, point, last.tail.length, last.original);
+    if (isMonaco(root)) e.stopPropagation(); // Monaco는 기본 동작이 막혀도 자체 처리로 지울 수 있다
+    const outcome = replaceBeforeCaret(root, point, last.tail.length, last.original);
     finishRevert(last, outcome, point.before.length - last.tail.length);
   }
 
@@ -397,20 +388,23 @@
     }
     const last = record;
     record = null;
+    const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
+    const navigation = !plain || NAV_KEYS.has(e.key);
+    const backspace = last && e.key === 'Backspace' && plain && !e.repeat && !e.isComposing;
+    const trigger = TRIGGERS.has(e.key) && !e.repeat && !e.isComposing && e.keyCode !== 229 && !composing;
+    if (!navigation && !backspace && !trigger) return;
     const root = rootFrom(e.composedPath()[0]);
     if (!root) return;
-    const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
-    if (last?.root === root && e.key === 'Backspace' && plain && !e.repeat && !e.isComposing) {
+    if (backspace && last.root === root) {
       revert(e, last);
       return;
     }
-    if (!plain || NAV_KEYS.has(e.key)) {
+    if (navigation) {
       chain.set(root, false);
       kept = null;
       return;
     }
-    if (!TRIGGERS.has(e.key) || e.repeat || e.isComposing || e.keyCode === 229 || composing) return;
-    if (!siteActive() || isPasswordLike(root) || isExcluded(root)) return;
+    if (!trigger || !siteActive() || isExcluded(root) || isPasswordLike(root)) return;
     if (e.key === 'Enter' && root.getAttribute('aria-activedescendant')) return;
     convertAtCaret(e, root);
   }
@@ -422,18 +416,13 @@
     if (root) chain.set(root, false);
   }
 
-  // 되돌린 뒤 사용자가 영문자를 실제로 입력하면 새로 친 단어로 보고 다시 판정한다.
-  // 확장이 보내는 합성 beforeinput은 isTrusted가 false라 여기서 걸러진다.
-  function forgetKeptOnTyping(e) {
-    if (kept && e.isTrusted && e.inputType === 'insertText' && /[A-Za-z]/.test(e.data ?? '')) kept = null;
-  }
-
   addEventListener('keydown', onKeyDown, true);
   addEventListener('keydown', previewOnKeyDown, true);
-  addEventListener('beforeinput', forgetKeptOnTyping, true);
-  // keydown 없이 글자를 넣는 입력(받아쓰기 등)이 beforeinput을 취소하는 편집기(Slate)에 들어가면 input도 오지 않는다
+  // Slate가 beforeinput을 취소하면 input이 오지 않으므로 둘 다 감시한다.
   for (const type of ['beforeinput', 'input']) addEventListener(type, (e) => {
-    if (e.isTrusted) markTyping();
+    if (!e.isTrusted) return; // 확장이 보내는 합성 beforeinput은 여기서 걸러진다
+    if (type === 'beforeinput' && kept && e.inputType === 'insertText' && /[A-Za-z]/.test(e.data ?? '')) kept = null;
+    markTyping();
   }, true);
   document.addEventListener('selectionchange', () => schedulePreview(performance.now() - typedAt < TYPING_GRACE));
   for (const type of ['scroll', 'resize', 'wheel']) addEventListener(type, () => schedulePreview(false), { capture: true, passive: true });

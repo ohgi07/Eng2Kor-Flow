@@ -39,13 +39,13 @@ test('compose: 낱자모와 IME식 조합', () => expectAll(E.compose, {
 
 test('상용 2350자 집합', () => assert.equal(E.tables.COMMON.size, 2350));
 
-test('hangulCandidate: 반복 자모 분리 (스펙 3.3)', () => expectAll(E.hangulCandidate, {
+test('hangulCandidate: 반복 자모 분리', () => expectAll(E.hangulCandidate, {
   rmfozzz: '그래ㅋㅋㅋ', gkzzz: '하ㅋㅋㅋ', rhakdnjggg: '고마워ㅎㅎㅎ', whggg: '좋ㅎㅎ', aksggg: '많ㅎㅎ',
   qndjzzz: '부엌ㅋㅋ', djgbbb: '어휴ㅠㅠ', sjggg: '넣ㅎㅎ', aldksbb: '미안ㅠㅠ', Wkdbb: '짱ㅠㅠ',
   dkzzz: '아ㅋㅋㅋ', rmfoz: null,
 }));
 
-test('hangulCandidate: 구조와 상용 음절 (스펙 3.4 3–4단계)', () => expectAll(E.hangulCandidate, {
+test('hangulCandidate: 구조와 상용 음절', () => expectAll(E.hangulCandidate, {
   dkssudgktpdy: '안녕하세요', hello: null, meeting: null, sun: null, dog: null, the: null,
   zzz: 'ㅋㅋㅋ', dz: 'ㅇㅋ', dzzz: 'ㅇㅋㅋㅋ', rt: 'ㄳ', rtk: null,
   dkssudz: null, dkssudzz: '안녕ㅋㅋ', zzdkssud: 'ㅋㅋ안녕',
@@ -53,7 +53,7 @@ test('hangulCandidate: 구조와 상용 음절 (스펙 3.4 3–4단계)', () => 
 
 const WORDS = require('../extension/src/words.js');
 
-test('convert: 결과 예시 (스펙 3.7)', () => {
+test('convert: 결과 예시', () => {
   const rows = [
     ['dkssudgktpdy', false, '안녕하세요'], ['dlTdj', false, '있어'], ['hello', false, null],
     ['meeting', true, null], ['sun', true, null], ['dog', true, null], ['the', false, null],
@@ -68,7 +68,7 @@ test('convert: 영문자 외 글자가 섞이면 변환하지 않는다', () => 
   for (const token of ['dkssud1', 'dk_ssud', 'dkssud!']) assert.equal(E.convert(token), null, token);
 });
 
-test('preview: 확정·조합 중·없음 (미리보기 스펙 2절)', () => {
+test('preview: 확정·조합 중·없음', () => {
   const rows = [
     ['dkssud', false, { text: '안녕', pending: '' }],
     ['dlT', false, { text: '있', pending: '' }],
@@ -93,7 +93,7 @@ test('words.js: 보호가 필요한 대표 단어를 포함하고 CHAIN_WORDS는
   for (const word of E.CHAIN_WORDS) assert.ok(WORDS.has(word), word);
 });
 
-test('extractToken: 토큰 경계 (스펙 4.2)', () => {
+test('extractToken: 토큰 경계', () => {
   const tok = (before, next, prev) => E.extractToken(before, next, prev)?.token ?? null;
   assert.equal(tok('dkssud'), 'dkssud');
   assert.equal(E.extractToken('안녕 dkssud').start, 3);

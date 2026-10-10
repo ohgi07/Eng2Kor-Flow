@@ -1,5 +1,4 @@
-// Eng2Kor Flow — 변환 미리보기 말풍선 (콘텐츠 스크립트). 판정은 하지 않고 그리기와 위치 재기만 한다.
-// manifest에서 hangul.js 다음, content.js 앞에 로드된다. 기준점은 { x, top, bottom } 뷰포트 좌표(CSS px)다.
+// 변환 미리보기 말풍선. 판정은 하지 않는다. 기준점 { x, top, bottom }은 뷰포트 좌표(CSS px)다.
 const Eng2KorPreview = (() => {
   'use strict';
 
@@ -47,7 +46,6 @@ const Eng2KorPreview = (() => {
   let canvas = null;
   let side = { key: null, below: true }; // 한 단어를 치는 동안 위/아래를 유지한다
 
-  // 페이지 맨 바깥에 상자 하나를 붙인다. 사이트가 지우면 MAX_ATTACH번까지만 다시 붙인다.
   function ensure() {
     if (host?.isConnected) return true;
     if (attached >= MAX_ATTACH || !document.documentElement) return false;
@@ -81,8 +79,8 @@ const Eng2KorPreview = (() => {
 
   function show(anchor, { text, pending }, key) {
     if (!ensure()) return;
-    textEl.textContent = text;
-    pendingEl.textContent = pending;
+    if (textEl.textContent !== text) textEl.textContent = text;
+    if (pendingEl.textContent !== pending) pendingEl.textContent = pending;
     if (!bubble.matches(':popover-open')) bubble.showPopover();
     const { width, height } = bubble.getBoundingClientRect();
     const view = viewport();
@@ -101,11 +99,11 @@ const Eng2KorPreview = (() => {
   }
 
   // el과, 넘침을 자르는 조상들과, 뷰포트를 모두 겹친 영역. fixed 요소 위로는 조상이 자르지 않는다.
-  function visibleBox(el) {
+  function visibleBox(el, rootStyle) {
     const view = viewport();
     const box = { left: 0, top: 0, right: view.width, bottom: view.height };
     for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
-      const style = getComputedStyle(node);
+      const style = node === el && rootStyle ? rootStyle : getComputedStyle(node);
       if (node === el || style.overflowX !== 'visible' || style.overflowY !== 'visible') {
         const r = node.getBoundingClientRect();
         box.left = Math.max(box.left, r.left);
@@ -118,10 +116,10 @@ const Eng2KorPreview = (() => {
     return box;
   }
 
-  // 미리보기 스펙 5절: 첫 글자가 보이고 커서와 같은 줄이면 첫 글자, 아니면 커서. 커서가 안 보이면 null
-  function pickAnchor(el, anchors) {
+  // 첫 글자가 보이고 커서와 같은 줄이면 첫 글자, 아니면 커서. 커서가 안 보이면 null
+  function pickAnchor(el, anchors, style) {
     if (!anchors) return null;
-    const box = visibleBox(el);
+    const box = visibleBox(el, style);
     const seen = (p) => !!p && p.x >= box.left - 1 && p.x <= box.right + 1 && p.top >= box.top - 1 && p.bottom <= box.bottom + 1;
     const { start, caret } = anchors;
     if (!seen(caret)) return null;
@@ -169,8 +167,7 @@ const Eng2KorPreview = (() => {
     return { start: point(word.getClientRects()[0]), caret: point(rest.getClientRects()[0]) };
   }
 
-  function fieldAnchors(el, start, end) {
-    const style = getComputedStyle(el);
+  function fieldAnchors(el, start, end, style = getComputedStyle(el)) {
     if (!style.writingMode.startsWith('horizontal')) return null;
     const rect = el.getBoundingClientRect();
     if (Math.abs(rect.width - el.offsetWidth) > 1) return null; // transform·zoom이 걸려 있으면 재지 않는다
@@ -179,19 +176,18 @@ const Eng2KorPreview = (() => {
       : inputAnchors(el, start, end, style, rect);
   }
 
-  function charRect(node, index) {
-    const range = document.createRange();
-    range.setStart(node, index);
-    range.setEnd(node, index + 1);
-    return range.getClientRects()[0] ?? null;
-  }
-
   // contenteditable: 첫 글자 한 칸과 마지막 글자 한 칸의 상자로 잰다 (DOM은 건드리지 않는다)
   function rangeAnchors(node, start, end) {
     const el = node.parentElement;
     if (!el || !getComputedStyle(el).writingMode.startsWith('horizontal')) return null;
-    const first = charRect(node, start);
-    const last = charRect(node, end - 1);
+    const range = document.createRange();
+    const at = (index) => {
+      range.setStart(node, index);
+      range.setEnd(node, index + 1);
+      return range.getClientRects()[0] ?? null;
+    };
+    const first = at(start);
+    const last = at(end - 1);
     return {
       start: first && { x: first.left, top: first.top, bottom: first.bottom },
       caret: last && { x: last.right, top: last.top, bottom: last.bottom },
