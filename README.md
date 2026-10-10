@@ -36,6 +36,6 @@ powershell -File scripts/pack.ps1  # 스토어 업로드용 zip
 
 - 두벌식 자판 기준입니다.
 - 구글 문서는 아직 지원하지 않습니다(다음 버전 예정).
-- 비밀번호 판정은 type·autocomplete·마스킹 스타일·name/id 신호가 있는 입력칸만 보장합니다.
+- 비밀번호 판정은 type, autocomplete, 마스킹 스타일, name/id 신호가 있는 입력칸만 보장합니다.
 - Gmail, ChatGPT, Claude에서는 Ctrl+Z가 변환과 그 앞의 입력을 한 번에 되돌릴 수 있습니다.
 - `beforeinput`을 받아들이지 않는 자체 모델 편집기는 화면과 내용이 어긋날 수 있습니다. 문제가 있는 사이트는 팝업에서 끌 수 있습니다.
