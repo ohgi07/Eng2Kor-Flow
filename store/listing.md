@@ -34,8 +34,10 @@ Eng2Kor Flow는 영문 자판으로 친 한글을 스페이스나 Enter를 누�
 - 언어: 한국어
 - 홈페이지 URL: https://github.com/ohgi07/Eng2Kor-Flow
 - 개인정보처리방침 URL: https://ohgi07.github.io/Eng2Kor-Flow/store/privacy.html
-- 스크린샷(1280×800): `store/screenshot-1.png`, `store/screenshot-2.png`
+- 스크린샷(1280×800): `store/screenshot-1.png` ~ `store/screenshot-5.png` (변환, 미리보기, 되돌리기, 영어 유지, 팝업 설정)
 - 작은 프로모션 타일(440×280): `store/promo-440x280.png`
+- 마키 이미지(1400×560): `store/marquee-1400x560.png`
+- 지원 URL: https://github.com/ohgi07/Eng2Kor-Flow/issues
 - 업로드 파일: `powershell -File scripts/pack.ps1`로 만든 `eng2kor-flow-1.0.0.zip`
 
 ## 단일 목적

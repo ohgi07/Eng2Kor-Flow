@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Eng2Kor Flow 스크린샷</title>
+<!-- 스토어 스크린샷. 640×400으로 그리고 2배로 찍는다(1280×800). 말풍선과 팝업은 확장의 실제 코드로 그린다.
+     node scripts/serve.mjs 를 띄운 뒤 node scripts/screenshot.mjs "http://127.0.0.1:8080/store/screenshots.html?shot=1" 640 400 store/screenshot-1.png 2 -->
+<script>window.chrome = { storage: { sync: { get: (defaults, callback) => callback({ ...defaults }) }, onChanged: { addListener() {} } }, runtime: { onMessage: { addListener() {} } } };</script>
+<script src="/extension/src/words.js"></script>
+<script src="/extension/src/hangul.js"></script>
+<script src="/extension/src/preview.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 640px; height: 400px; overflow: hidden; background: #f5f7fb; }
+  body { font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; color: #1d1d1f; padding: 0 48px; display: grid; align-content: center; }
+  h1 { margin: 0 0 24px; font-size: 26px; line-height: 1.3; }
+  h1 em { font-style: normal; color: #2f6fed; }
+  .scene { display: none; }
+  .scene.side { grid-template-columns: 1fr auto; align-items: center; gap: 32px; }
+  .scene.side h1 { margin: 0; }
+  .card { background: #fff; border-radius: 14px; box-shadow: 0 8px 28px rgba(20, 40, 90, .10); padding: 20px 24px; }
+  .card.room { padding-bottom: 48px; }
+  .field { display: block; width: 100%; height: 44px; padding: 0 14px; border: 1.5px solid #d1d1d6; border-radius: 10px; font: 16px "Malgun Gothic", sans-serif; color: #1d1d1f; background: #fff; outline: none; }
+  .field.on { border-color: #2f6fed; }
+  .step { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .key { justify-self: center; font: 12px/1 "Malgun Gothic", sans-serif; color: #3a3a3c; background: #eef1f6; border: 1px solid #d1d5dd; border-bottom-width: 2px; border-radius: 6px; padding: 5px 10px; }
+  .typed { margin-top: 12px; font: 13px Consolas, monospace; color: #8e8e93; }
+  .chat { display: grid; gap: 8px; margin-bottom: 16px; }
+  .msg { justify-self: start; max-width: 70%; padding: 8px 12px; border-radius: 12px; background: #eef1f6; font-size: 14px; }
+  .msg.me { justify-self: end; background: #2f6fed; color: #fff; }
+  .caret { position: fixed; width: 1.5px; height: 20px; background: #1d1d1f; }
+  .popup { display: block; width: 280px; height: 100px; border: 0; border-radius: 12px; box-shadow: 0 10px 32px rgba(20, 40, 90, .18); background: #fff; }
+</style>
+</head>
+<body>
+
+<section class="scene" data-shot="1">
+  <h1>한/영 키를 깜빡해도 <em>한글로</em> 바뀌어요</h1>
+  <div class="card step">
+    <input class="field" value="dkssudgktpdy" readonly>
+    <span class="key">Space</span>
+    <input class="field on" data-convert="dkssudgktpdy" readonly>
+  </div>
+</section>
+
+<section class="scene" data-shot="2">
+  <h1>바뀔 글자를 <em>미리</em> 보여 줘요</h1>
+  <div class="card room">
+    <div class="chat">
+      <div class="msg">내일 세 시에 만날까요?</div>
+    </div>
+    <input class="field on" id="preview-field" value="네, 내일 aksskdy" data-preview="aksskdy">
+  </div>
+</section>
+
+<section class="scene" data-shot="3">
+  <h1>잘못 바뀌면 <em>Backspace 두 번</em>으로 되돌려요</h1>
+  <div class="card step">
+    <input class="field" data-revert="0" readonly>
+    <span class="key">Backspace</span>
+    <input class="field" data-revert="1" readonly>
+    <span class="key">Backspace</span>
+    <input class="field on" data-revert="2" readonly>
+  </div>
+</section>
+
+<section class="scene" data-shot="4">
+  <h1>영어 단어는 <em>그대로</em> 둬요</h1>
+  <div class="card">
+    <input class="field on" data-sentence="dhsmf meeting Rmxskrh git push gkfrp" readonly>
+    <div class="typed">친 글자: dhsmf meeting Rmxskrh git push gkfrp</div>
+  </div>
+</section>
+
+<section class="scene side" data-shot="5">
+  <h1>사이트마다<br><em>끄고 켤 수</em> 있어요</h1>
+  <iframe class="popup" title="팝업"></iframe>
+</section>
+
+<script>
+  const { convert, preview } = Eng2Kor;
+  const shot = new URLSearchParams(location.search).get('shot') ?? '1';
+  const scene = document.querySelector(`[data-shot="${shot}"]`);
+  scene.style.display = scene.classList.contains('side') ? 'grid' : 'block';
+
+  // 1: 변환 결과
+  for (const el of document.querySelectorAll('[data-convert]')) el.value = `${convert(el.dataset.convert)} `;
+
+  // 3: tbd가 슝으로 바뀐 뒤 Backspace 두 번에 되돌아가는 과정
+  const reverted = ['tbd', convert('tbd')];
+  const revertSteps = [`회의 시간 ${reverted[1]} `, `회의 시간 ${reverted[1]}`, `회의 시간 ${reverted[0]}`];
+  for (const el of document.querySelectorAll('[data-revert]')) el.value = revertSteps[el.dataset.revert];
+
+  // 4: 단어마다 연쇄를 이어 가며 변환한 문장
+  for (const el of document.querySelectorAll('[data-sentence]')) {
+    let chain = false;
+    el.value = el.dataset.sentence.split(' ').map((word) => {
+      const out = convert(word, { chain });
+      chain = !!out;
+      return out ?? word;
+    }).join(' ');
+  }
+
+  // 2: 실제 말풍선과 커서. 헤드리스 크롬은 스크립트가 도는 동안 창 높이를 304로 알려 주고 찍을 때 400으로 키우므로,
+  // 크기가 바뀔 때마다 새 단어로 보고 다시 띄워 말풍선 위/아래를 다시 정한다.
+  // 헤드리스 크롬은 입력 커서를 그리지 않아서, 글자 끝 위치를 재어 커서 선을 그린다.
+  if (shot === '2') {
+    const field = document.getElementById('preview-field');
+    const token = field.dataset.preview;
+    const end = field.value.length;
+    const caret = document.body.appendChild(document.createElement('div'));
+    caret.className = 'caret';
+    let serial = 0;
+    const place = () => {
+      const anchors = Eng2KorPreview.fieldAnchors(field, end - token.length, end);
+      caret.style.left = `${anchors.caret.x + 1}px`;
+      caret.style.top = `${(anchors.caret.top + anchors.caret.bottom) / 2 - 10}px`;
+      const anchor = Eng2KorPreview.pickAnchor(field, anchors);
+      if (anchor) Eng2KorPreview.show(anchor, preview(token), `shot-${serial++}`);
+    };
+    addEventListener('load', () => requestAnimationFrame(place));
+    addEventListener('resize', place);
+  }
+
+  // 5: 실제 팝업 (가짜 chrome API를 먼저 둔다)
+  if (shot === '5') {
+    fetch('/extension/popup/popup.html').then((r) => r.text()).then((html) => {
+      const fake = `<base href="/extension/popup/"><script>window.chrome = {
+        storage: { sync: { get: async () => ({ enabled: true, preview: true, disabledSites: ['docs.example.org'] }), set() {} } },
+        tabs: { query: async () => [{ id: 1 }], sendMessage: async () => ({ host: 'mail.example.com', supported: true }) },
+      };<\/script>`;
+      const frame = document.querySelector('.popup');
+      // 팝업이 설정을 읽어 목록을 그린 뒤 내용 높이에 맞춘다
+      frame.onload = () => setTimeout(() => { frame.style.height = `${frame.contentDocument.documentElement.scrollHeight}px`; }, 300);
+      frame.srcdoc = html.replace('<head>', `<head>${fake}`);
+    });
+  }
+</script>
+</body>
+</html>
