@@ -28,6 +28,15 @@ Eng2Kor Flow는 영문 자판으로 친 한글을 스페이스나 Enter를 누�
 • 두벌식 자판 기준입니다
 • 구글 문서처럼 자체 입력 방식을 쓰는 일부 편집기에서는 동작하지 않습니다
 
+## 그 밖의 입력값
+- 카테고리: 생산성 → 도구
+- 언어: 한국어
+- 홈페이지 URL: https://github.com/ohgi07/Eng2Kor-Flow
+- 개인정보처리방침 URL: https://github.com/ohgi07/Eng2Kor-Flow/blob/main/store/privacy.md
+- 스크린샷(1280×800): `store/screenshot-1.png`, `store/screenshot-2.png`
+- 작은 프로모션 타일(440×280): `store/promo-440x280.png`
+- 업로드 파일: `powershell -File scripts/pack.ps1`로 만든 `eng2kor-flow-1.0.0.zip`
+
 ## 단일 목적
 영문 자판 상태에서 입력된 두벌식 한글 키 입력을, 사용자가 입력하는 도중 한글로 변환합니다.
 

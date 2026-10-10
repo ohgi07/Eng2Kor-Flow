@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1280px; height: 800px; font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background: #f5f7fb; color: #1d1d1f; display: grid; grid-template-columns: 1fr 1.1fr; align-items: center; padding: 0 96px; gap: 64px; }
+  h1 { font-size: 52px; line-height: 1.25; margin: 0 0 24px; }
+  h1 em { font-style: normal; color: #2f6fed; }
+  ul { list-style: none; padding: 0; margin: 0; font-size: 22px; line-height: 1.9; color: #3a3a3c; }
+  li::before { content: "✓ "; color: #2f6fed; font-weight: 700; }
+  .card { background: #fff; border-radius: 20px; box-shadow: 0 12px 40px rgba(20, 40, 90, .12); padding: 36px 36px 28px; display: grid; gap: 22px; }
+  .label { font-size: 16px; color: #8e8e93; margin-bottom: -12px; }
+  .field { position: relative; border: 2px solid #d1d1d6; border-radius: 12px; padding: 16px 20px; font-size: 26px; height: 68px; margin-bottom: 44px; }
+  .field.focus { border-color: #2f6fed; }
+  .typed { font-family: Consolas, monospace; color: #1d1d1f; }
+  .caret { display: inline-block; width: 2px; height: 30px; background: #1d1d1f; vertical-align: -5px; margin-left: 1px; }
+  .word { position: relative; }
+  /* 확장의 실제 말풍선과 같은 모양 (화면용으로 키움) */
+  .bubble { position: absolute; left: 0; top: calc(100% + 14px); white-space: pre; padding: 3px 12px; border: 1px solid rgba(0, 0, 0, .15); border-radius: 8px; background: #fff; color: #1d1d1f; box-shadow: 0 2px 10px rgba(0, 0, 0, .15); font: 22px/1.4 "Malgun Gothic", sans-serif; }
+  .pending { opacity: .45; text-decoration: underline dotted; }
+  .note { font-size: 16px; color: #8e8e93; }
+</style>
+</head>
+<body>
+  <div>
+    <h1>바뀔 글자를<br><em>미리</em> 보여 줘요</h1>
+    <ul>
+      <li>치는 동안 단어 아래에 말풍선으로</li>
+      <li>스페이스를 누르면 그대로 바뀌어요</li>
+      <li>받침이 넘어갈지 모르는 글자는 흐리게</li>
+      <li>영어 단어에는 뜨지 않아요</li>
+      <li>팝업에서 끌 수 있어요</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="label">메시지</div>
+    <div class="field focus">오늘 날씨 <span class="word"><span class="typed">wlsWk</span><span class="bubble">진짜</span></span><span class="caret"></span></div>
+    <div class="label">받침이 아직 정해지지 않았을 때</div>
+    <div class="field">반가워요 <span class="word"><span class="typed">dkss</span><span class="bubble">안<span class="pending">ㄴ</span></span></span></div>
+    <div class="note">말풍선은 화면에만 그리며, 입력 내용은 저장·전송하지 않아요</div>
+  </div>
+</body>
+</html>
