@@ -110,17 +110,22 @@ const Eng2Kor = (() => {
   const CHAIN_WORDS = new Set(['go', 'so', 'to', 'do', 'wp', 'aka', 'rid']);
   const WORDS = typeof ENGLISH_WORDS !== 'undefined' ? ENGLISH_WORDS : require('./words.js');
 
+  const isEnglish = (token, chain) => {
+    const lower = token.toLowerCase();
+    return WORDS.has(lower) && !(chain && CHAIN_WORDS.has(lower));
+  };
+
   function convert(token, { chain = false } = {}) {
     if (token.length < 2 || !/^[A-Za-z]+$/.test(token) || token === token.toUpperCase()) return null;
-    const lower = token.toLowerCase();
-    if (WORDS.has(lower) && !(chain && CHAIN_WORDS.has(lower))) return null;
+    if (isEnglish(token, chain)) return null;
     return hangulCandidate(token);
   }
 
-  // 다음 음절의 초성이 될 수 있는 마지막 자음은 pending으로 분리한다.
+  // 다음 음절의 초성이 될 수 있는 마지막 자음은 pending으로 분리한다. 사전 단어는 조합 중으로도 보이지 않는다.
   function preview(token, { chain = false } = {}) {
     const full = convert(token, { chain });
     if (full) return { text: full, pending: '' };
+    if (isEnglish(token, chain)) return null;
     const key = token.slice(-1);
     const last = KEYMAP[key] ?? KEYMAP[key.toLowerCase()];
     if (!last || last < 'ㄱ' || last > 'ㅎ') return null;

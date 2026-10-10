@@ -79,6 +79,7 @@ test('preview: 확정·조합 중·없음', () => {
     ['wlsW', false, { text: '진', pending: 'ㅉ' }],
     ['with', false, null], ['hello', false, null], ['a', false, null], ['NASA', false, null], ['', false, null],
     ['go', false, null], ['go', true, { text: '해', pending: '' }],
+    ['gpt', false, null], ['thx', false, null], ['gpt', true, null], // 사전 단어는 조합 중으로도 보여 주지 않는다
   ];
   for (const [token, chain, expected] of rows) assert.deepEqual(E.preview(token, { chain }), expected, `${token} chain=${chain}`);
 });

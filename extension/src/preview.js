@@ -99,12 +99,16 @@ const Eng2KorPreview = (() => {
   }
 
   // el과, 넘침을 자르는 조상들과, 뷰포트를 모두 겹친 영역. fixed 요소 위로는 조상이 자르지 않는다.
+  // body의 overflow는 뷰포트에 적용되므로(유튜브) body와 html은 보지 않고, inline·contents 요소는 자르지 않는다.
   function visibleBox(el, rootStyle) {
     const view = viewport();
     const box = { left: 0, top: 0, right: view.width, bottom: view.height };
-    for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+    for (let node = el; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
       const style = node === el && rootStyle ? rootStyle : getComputedStyle(node);
-      if (node === el || style.overflowX !== 'visible' || style.overflowY !== 'visible') {
+      const clips = node === el
+        ? style.display !== 'contents'
+        : (style.overflowX !== 'visible' || style.overflowY !== 'visible') && style.display !== 'inline' && style.display !== 'contents';
+      if (clips) {
         const r = node.getBoundingClientRect();
         box.left = Math.max(box.left, r.left);
         box.top = Math.max(box.top, r.top);
