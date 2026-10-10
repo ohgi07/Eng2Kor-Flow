@@ -27,10 +27,10 @@ powershell -File scripts/pack.ps1  # 스토어 업로드용 zip
 
 | 사이트 | 참고 |
 |---|---|
-| 구글 검색, Gmail, ChatGPT, Discord | |
-| 유튜브 댓글, GitHub, Claude | 미리보기는 아직 확인하지 않았습니다 |
+| 구글 검색, 네이버 검색, 유튜브 댓글 | |
+| ChatGPT, Claude, Discord, GitHub, Gmail, Notion | |
 | Colab | 코드 셀에서는 주석과 문자열 안에서만 바꿉니다 |
-| 네이버 검색, Slack, Notion | 아직 확인하지 않았습니다 |
+| Slack | 아직 확인하지 않았습니다 |
 
 ## 알려진 한계
 
