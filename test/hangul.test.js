@@ -89,7 +89,7 @@ test('words.js: 모든 단어가 한글 후보를 낸다', () => {
 });
 
 test('words.js: 보호가 필요한 대표 단어를 포함하고 CHAIN_WORDS는 그 부분집합이다', () => {
-  for (const word of ['go', 'so', 'to', 'do', 'for', 'and', 'gg', 'gl', 'wp']) assert.ok(WORDS.has(word), word);
+  for (const word of ['go', 'so', 'to', 'do', 'for', 'and', 'gg', 'gl', 'wp', 'ai', 'gpt', 'todo', 'wifi']) assert.ok(WORDS.has(word), word);
   for (const word of E.CHAIN_WORDS) assert.ok(WORDS.has(word), word);
 });
 

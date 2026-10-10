@@ -7,7 +7,10 @@ const require = createRequire(import.meta.url);
 const { hangulCandidate } = require('../extension/src/hangul.js');
 
 // SCOWL에 없는 채팅·게임·개발 약어
-const SUPPLEMENT = ['gg', 'gl', 'wp', 'gj', 'gn', 'gm', 'dm', 'ty', 'thx', 'tho', 'rn', 'wb', 'db', 'vm', 'dns'];
+const SUPPLEMENT = [
+  'gg', 'gl', 'wp', 'gj', 'gn', 'gm', 'dm', 'ty', 'thx', 'tho', 'rn', 'wb', 'db', 'vm', 'dns',
+  'ai', 'gpt', 'todo', 'wifi', 'sudo', 'figma', 'django', 'gitlab', 'ci', 'fn', 'cms', 'tba', 'apr',
+];
 // SCOWL에 있지만 흔한 한글 입력과 겹쳐서 빼는 단어 (생성 후 2–3글자 단어를 검토해 채운다)
 const EXCLUDE = [
   'dd', 'dz', 'rt', 'tr', 'wt', // ㅇㅇ ㅇㅋ ㄳ ㅅㄱ ㅈㅅ
