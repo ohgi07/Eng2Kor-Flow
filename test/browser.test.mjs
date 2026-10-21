@@ -94,6 +94,7 @@ const CODES = {
 const NAMED = {
   Enter: { key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 },
   Backspace: { key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 },
+  Tab: { key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 },
 };
 const SHIFT = { key: 'Shift', code: 'ShiftLeft', windowsVirtualKeyCode: 16 };
 NAMED.Shift = { ...SHIFT, modifiers: 8 };
@@ -167,6 +168,8 @@ const CASES = [
   { name: '스페이스 변환 뒤 Backspace 두 번', keys: 'dkssud {Backspace}{Backspace}', expected: 'dkssud', kept: 'dkssu' },
   { name: '숫자 뒤 단위와 조사', keys: '5ro 3tl, 2aud! 16gb 4th.', expected: '5개 3시, 2명! 16gb 4th.', kept: '5ro 3tl, 2aud! 16gb 4th.' },
   { name: '대문자로 시작하는 이름은 그대로', keys: 'Clairaut theorem, Abel.', expected: 'Clairaut theorem, Abel.' },
+  // 말풍선이 그려진 뒤에 Tab을 누른다. 미리보기를 끄면 Tab은 포커스를 옮기므로 뒤 글자는 다른 곳에 들어간다.
+  { name: '말풍선이 떠 있을 때 Tab', keys: ['dkssud', '{Tab} gkrh.'], expected: '안녕 하고.', kept: 'dkssud gkrh.', withoutPreview: 'dkssud' },
 ];
 
 // 화면 글자. 모델이 화면과 다르면 "화면 | 모델: 모델 글자"로 돌려준다.
@@ -193,9 +196,10 @@ test('브라우저: 편집기별 키 입력', { skip }, async (t) => {
           for (const id of TARGETS) {
             await page.goto(`${base}/test/editors.html?${query}`);
             await page.eval(`document.getElementById(${JSON.stringify(id)}).focus()`);
-            await page.type(c.keys);
+            for (const keys of [c.keys].flat()) await page.type(keys);
             actual[id] = await readTarget(page, id);
-            expected[id] = UNCONVERTIBLE.has(id) ? c.kept ?? c.expected : c.expected;
+            expected[id] = query.includes('preview=0') && 'withoutPreview' in c ? c.withoutPreview
+              : UNCONVERTIBLE.has(id) ? c.kept ?? c.expected : c.expected;
           }
           assert.deepEqual(actual, expected);
         });

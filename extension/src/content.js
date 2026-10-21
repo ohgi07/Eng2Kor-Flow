@@ -282,7 +282,13 @@
       : e.key !== 'Enter' ? 'char'
       : root.localName === 'textarea' ? 'newline'
       : isField(root) || isMonaco(root) ? null : 'block';
-    const trigger = kind === 'newline' ? '\n' : kind === 'block' ? '' : e.key;
+    // Tab은 글자를 넣지 않고, 포커스 이동·들여쓰기 같은 페이지의 Tab 처리도 막는다
+    const tab = e.key === 'Tab';
+    if (tab) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const trigger = kind === 'newline' ? '\n' : kind === 'block' || tab ? '' : e.key;
     replaceBeforeCaret(root, point, hit.token.length, hangul, (outcome) => {
       chain.set(root, outcome === 'ok');
       if (outcome === 'ok' && kind) record = { root, original: hit.token, converted: hangul, kind, tail: hangul + trigger };
@@ -424,7 +430,9 @@
     const navigation = !plain || NAV_KEYS.has(e.key);
     const backspace = last && e.key === 'Backspace' && plain && !e.repeat && !e.isComposing;
     const trigger = TRIGGERS.has(e.key) && !e.repeat && !e.isComposing && e.keyCode !== 229 && !composing;
-    if (!navigation && !backspace && !trigger) return;
+    // 말풍선이 떠 있을 때의 Tab은 자동완성처럼 그 변환을 받아들인다. 말풍선이 없으면 원래 Tab이다.
+    const accept = e.key === 'Tab' && plain && !e.shiftKey && !e.repeat && !e.isComposing && !composing && previewRoot !== null;
+    if (!navigation && !backspace && !trigger && !accept) return;
     const root = rootFrom(e.composedPath()[0]);
     if (!root) return;
     if (backspace && last.root === root) {
@@ -436,8 +444,8 @@
       kept = null;
       return;
     }
-    if (!trigger || !siteActive() || isExcluded(root) || isPasswordLike(root)) return;
-    if (e.key === 'Enter' && root.getAttribute('aria-activedescendant')) return;
+    if (!(trigger || (accept && root === previewRoot)) || !siteActive() || isExcluded(root) || isPasswordLike(root)) return;
+    if ((e.key === 'Enter' || accept) && root.getAttribute('aria-activedescendant')) return;
     convertAtCaret(e, root);
   }
 
