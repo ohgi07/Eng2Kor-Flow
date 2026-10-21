@@ -8,7 +8,10 @@
   const DEFAULTS = { enabled: true, disabledSites: [], preview: true };
   const TRIGGERS = new Set([' ', 'Enter', '.', ',', '!', '?', ';', ':', ')', ']', '}', "'", '"', '~']);
   const NAV_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
+  // 혼자서는 글자도 커서도 바꾸지 않는 키. 괄호·물음표를 칠 때마다 누르는 Shift도 여기에 든다.
+  const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'AltGraph', 'Meta', 'CapsLock']);
   const TYPING_GRACE = 300; // 늦게 그리는 편집기의 selectionchange도 타이핑으로 본다.
+  const SETTLE_TRIES = 6; // 합성 beforeinput을 받은 편집기가 다시 그렸는지 볼 횟수 (지금 한 번 + 마이크로태스크마다 한 번)
   const TEXT_TYPES = new Set(['text', 'search']);
   const CODE_EDITORS = '.cm-editor, .CodeMirror, .monaco-editor, .ace_editor';
   // 구글 문서는 DOM에서 글자를 읽을 수 없어 키 입력 추적 방식을 만들기 전까지 막는다.
@@ -165,11 +168,23 @@
     return '';
   }
 
+  function reflects(root, text) {
+    const after = readEditable(root);
+    return !!after && norm(after.before).endsWith(text);
+  }
+
   // Slate 등은 beforeinput으로 모델을 갱신한다. 취소되지 않았을 때만 execCommand를 쓴다.
-  function replaceInEditable(root, point, len, text) {
+  // 취소는 편집기가 이벤트를 가져갔다는 뜻일 뿐이므로 커서 앞 글자로 반영을 확인하고, 결과는 done으로 알린다.
+  // 반영되지 않았으면 단어를 고른 선택을 커서로 되돌린다. 남겨 두면 뒤따르는 트리거 글자가 단어를 덮어쓴다.
+  function replaceInEditable(root, point, len, text, done) {
     const sel = selectionOf(root);
     const { node, offset } = point;
     const original = node.data;
+    const settle = () => {
+      if (reflects(root, text)) return done('ok');
+      if (sel.rangeCount && !sel.isCollapsed) sel.collapseToEnd();
+      done(node.isConnected && node.data === original ? 'unchanged' : 'unexpected');
+    };
     const range = document.createRange();
     range.setStart(node, offset - len);
     range.setEnd(node, offset);
@@ -179,14 +194,26 @@
       inputType: 'insertText', data: text, bubbles: true, cancelable: true, composed: true,
       targetRanges: [new StaticRange({ startContainer: node, startOffset: offset - len, endContainer: node, endOffset: offset })],
     }));
-    if (handled) return 'ok';
-    document.execCommand('insertText', false, text);
-    if (node.isConnected && node.data === original) {
-      sel.collapse(node, offset);
-      return 'unchanged';
+    if (handled) {
+      // 모델만 바꾸고 마이크로태스크에서 그리는 편집기를 기다린다. React 위 Slate는 onChange와 렌더링이 각각 한 번씩 미뤄진다.
+      // 마이크로태스크는 이 리스너가 끝나자마자 모두 돌고, 트리거 글자는 그 뒤에 들어간다.
+      let tries = SETTLE_TRIES;
+      const wait = () => {
+        if (--tries === 0) settle();
+        else if (reflects(root, text)) done('ok');
+        else queueMicrotask(wait);
+      };
+      wait();
+      return;
     }
-    const after = readEditable(root);
-    return after && norm(after.before).endsWith(text) ? 'ok' : 'unexpected';
+    // 합성 beforeinput을 무시하는 Slate(slate-react 0.128~0.132)는 DOM을 직접 고치면 모델과 어긋난다
+    if (root.hasAttribute('data-slate-editor')) {
+      sel.collapse(node, offset);
+      done('unchanged');
+      return;
+    }
+    document.execCommand('insertText', false, text);
+    settle();
   }
 
   // Monaco MAIN world와 동기 이벤트로 통신한다. detail은 JSON 문자열이다.
@@ -221,9 +248,11 @@
     return point;
   }
 
-  function replaceBeforeCaret(root, point, len, text) {
-    if (isMonaco(root)) return callMonaco({ op: 'edit', len, text, expected: point.before.slice(-len) }) ?? 'unchanged';
-    return isField(root) ? replaceInField(root, len, text) : replaceInEditable(root, point, len, text);
+  // 결과('ok' | 'unchanged' | 'unexpected')는 done으로 알린다. contenteditable은 마이크로태스크에서 알릴 수 있다.
+  function replaceBeforeCaret(root, point, len, text, done) {
+    if (isMonaco(root)) done(callMonaco({ op: 'edit', len, text, expected: point.before.slice(-len) }) ?? 'unchanged');
+    else if (isField(root)) done(replaceInField(root, len, text));
+    else replaceInEditable(root, point, len, text, done);
   }
 
   // ── 변환 ──
@@ -244,17 +273,20 @@
       return;
     }
     const hangul = convert(hit.token, { chain: chain.get(root) === true });
-    const outcome = hangul ? replaceBeforeCaret(root, point, hit.token.length, hangul) : null;
-    chain.set(root, outcome === 'ok');
-    if (outcome !== 'ok') return;
+    if (!hangul) {
+      chain.set(root, false);
+      return;
+    }
     // input의 Enter는 전송·실행으로, Monaco의 Enter는 자동 들여쓰기·셀 실행이 섞이므로 복원 기록을 남기지 않는다
     const kind = e.key === ' ' ? 'space'
       : e.key !== 'Enter' ? 'char'
       : root.localName === 'textarea' ? 'newline'
       : isField(root) || isMonaco(root) ? null : 'block';
-    if (!kind) return;
     const trigger = kind === 'newline' ? '\n' : kind === 'block' ? '' : e.key;
-    record = { root, original: hit.token, converted: hangul, kind, tail: hangul + trigger };
+    replaceBeforeCaret(root, point, hit.token.length, hangul, (outcome) => {
+      chain.set(root, outcome === 'ok');
+      if (outcome === 'ok' && kind) record = { root, original: hit.token, converted: hangul, kind, tail: hangul + trigger };
+    });
   }
 
   // ── 미리보기 ──
@@ -318,9 +350,9 @@
     schedulePreview(true);
   }
 
-  // 트리거·이동 키·조합 키는 숨기고, 나머지 키(글자, Backspace, Delete 등)는 다시 판정한다
+  // 수식 키만 누르면 그대로 두고, 트리거·이동 키·조합 키는 숨기고, 나머지 키(글자, Backspace, Delete 등)는 다시 판정한다
   function previewOnKeyDown(e) {
-    if (!e.isTrusted) return;
+    if (!e.isTrusted || MODIFIER_KEYS.has(e.key)) return;
     const plain = !e.ctrlKey && !e.altKey && !e.metaKey;
     if (!plain || NAV_KEYS.has(e.key) || TRIGGERS.has(e.key) || e.isComposing || e.keyCode === 229) {
       hidePreview();
@@ -347,8 +379,8 @@
     }
     e.preventDefault();
     if (isMonaco(root)) e.stopPropagation(); // Monaco는 기본 동작이 막혀도 자체 처리로 지울 수 있다
-    const outcome = replaceBeforeCaret(root, point, last.tail.length, last.original);
-    finishRevert(last, outcome, point.before.length - last.tail.length);
+    const start = point.before.length - last.tail.length;
+    replaceBeforeCaret(root, point, last.tail.length, last.original, (outcome) => finishRevert(last, outcome, start));
   }
 
   // start: 되돌린 원문이 시작하는 위치 (커서 앞 텍스트 기준). 편집기가 화면을 늦게 다시 그려도 계산으로 정한다.
@@ -371,8 +403,8 @@
       if (isPasswordLike(root)) return;
       const post = readEditable(root);
       if (!post || !norm(post.before).endsWith(last.converted)) return;
-      const outcome = replaceInEditable(root, post, last.converted.length, last.original);
-      finishRevert(last, outcome, post.before.length - last.converted.length);
+      const start = post.before.length - last.converted.length;
+      replaceInEditable(root, post, last.converted.length, last.original, (outcome) => finishRevert(last, outcome, start));
     };
     pendingBlock = state;
     state.timer = setTimeout(check, 100);
@@ -381,7 +413,7 @@
 
   // ── 이벤트 ──
   function onKeyDown(e) {
-    if (!e.isTrusted) return;
+    if (!e.isTrusted || MODIFIER_KEYS.has(e.key)) return;
     if (pendingBlock) {
       clearTimeout(pendingBlock.timer);
       pendingBlock = null;
