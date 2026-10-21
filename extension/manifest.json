@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Eng2Kor Flow - 영한 자동 변환",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "영문 자판으로 잘못 친 한글을 입력하는 도중에 자동으로 바꿔 줍니다. 예: dkssud → 안녕",
   "icons": {
     "16": "icons/icon16.png",
