@@ -39,7 +39,7 @@ Eng2Kor Flow는 영문 자판으로 친 한글을 스페이스나 Enter를 누�
 - 작은 프로모션 타일(440×280): `store/promo-440x280.png`
 - 마키 이미지(1400×560): `store/marquee-1400x560.png`
 - 지원 URL: https://github.com/ohgi07/Eng2Kor-Flow/issues
-- 업로드 파일: `powershell -File scripts/pack.ps1`로 만든 `eng2kor-flow-1.0.1.zip`
+- 업로드 파일: `powershell -File scripts/pack.ps1`로 만든 `eng2kor-flow-1.1.0.zip`
 
 ## 단일 목적
 영문 자판 상태에서 입력된 두벌식 한글 키 입력을, 사용자가 입력하는 도중 한글로 변환합니다.
