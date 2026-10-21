@@ -165,6 +165,8 @@ const CASES = [
   { name: '괄호 변환 직후 Backspace', keys: '(dkssud){Backspace}', expected: '(dkssud' },
   { name: 'Shift만 눌렀다 떼도 Backspace로 되돌린다', keys: '(dkssud){Shift}{Backspace}', expected: '(dkssud' },
   { name: '스페이스 변환 뒤 Backspace 두 번', keys: 'dkssud {Backspace}{Backspace}', expected: 'dkssud', kept: 'dkssu' },
+  { name: '숫자 뒤 단위와 조사', keys: '5ro 3tl, 2aud! 16gb 4th.', expected: '5개 3시, 2명! 16gb 4th.', kept: '5ro 3tl, 2aud! 16gb 4th.' },
+  { name: '대문자로 시작하는 이름은 그대로', keys: 'Clairaut theorem, Abel.', expected: 'Clairaut theorem, Abel.' },
 ];
 
 // 화면 글자. 모델이 화면과 다르면 "화면 | 모델: 모델 글자"로 돌려준다.

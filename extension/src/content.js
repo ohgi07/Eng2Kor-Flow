@@ -244,7 +244,7 @@
     const point = readEditable(root);
     if (!point) return null;
     if (point.offset === point.node.data.length) point.next = adjacentChar(root, point.node, true);
-    if (/^[A-Za-z]+$/.test(point.before)) point.prevOutside = adjacentChar(root, point.node, false);
+    if (/^[\d.,]*[A-Za-z]+$/.test(point.before)) point.prevOutside = adjacentChar(root, point.node, false);
     return point;
   }
 
@@ -272,7 +272,7 @@
       if (/[A-Za-z]$/.test(point.before)) chain.set(root, false);
       return;
     }
-    const hangul = convert(hit.token, { chain: chain.get(root) === true });
+    const hangul = convert(hit.token, { chain: chain.get(root) === true, number: hit.number });
     if (!hangul) {
       chain.set(root, false);
       return;
@@ -304,7 +304,7 @@
     const point = readPoint(root);
     const hit = point && extractToken(point.before, point.next, point.prevOutside);
     if (!hit || atKept(root, hit, point)) return null;
-    const result = preview(hit.token, { chain: chain.get(root) === true });
+    const result = preview(hit.token, { chain: chain.get(root) === true, number: hit.number });
     if (!result) return null;
     const end = point.before.length;
     const anchors = isMonaco(root) ? callMonaco({ op: 'rect', len: hit.token.length })

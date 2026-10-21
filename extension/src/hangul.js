@@ -114,22 +114,27 @@ const Eng2Kor = (() => {
     const lower = token.toLowerCase();
     return WORDS.has(lower) && !(chain && CHAIN_WORDS.has(lower));
   };
+  // 두벌식에서 Shift가 뜻이 없는 글자(Q W E R T O P 밖)를 대문자로 시작한 단어는 영어 이름으로 본다
+  const NAME = /^[ABCDFGHIJKLMNSUVXYZ][a-z]+$/;
+  // 숫자 바로 뒤에 붙는 단위·조사의 첫 음절. gb(휴) th(소) vh(포) qhd(봉)처럼 영어 단위와 겹치는 음절은 넣지 않는다.
+  const AFTER_NUMBER = new Set([...'개명번시분초일월년원살세층등위회배장권대주차호점줄칸쪽판잔병곳마가인달천만억조퍼프박반동표건통편곡골킬미센밀그리평벌켤채알자단급기강겹선연승패타면부막화교학바근톤렙레째짜쯤씩정여은는이을를에의와과랑도까보처로으']);
 
-  function convert(token, { chain = false } = {}) {
+  function convert(token, { chain = false, number = false } = {}) {
     if (token.length < 2 || !/^[A-Za-z]+$/.test(token) || token === token.toUpperCase()) return null;
-    if (isEnglish(token, chain)) return null;
-    return hangulCandidate(token);
+    if (isEnglish(token, chain) || NAME.test(token)) return null;
+    const hangul = hangulCandidate(token);
+    return hangul && (!number || AFTER_NUMBER.has(hangul[0])) ? hangul : null;
   }
 
   // 다음 음절의 초성이 될 수 있는 마지막 자음은 pending으로 분리한다. 사전 단어는 조합 중으로도 보이지 않는다.
-  function preview(token, { chain = false } = {}) {
-    const full = convert(token, { chain });
+  function preview(token, { chain = false, number = false } = {}) {
+    const full = convert(token, { chain, number });
     if (full) return { text: full, pending: '' };
     if (isEnglish(token, chain)) return null;
     const key = token.slice(-1);
     const last = KEYMAP[key] ?? KEYMAP[key.toLowerCase()];
     if (!last || last < 'ㄱ' || last > 'ㅎ') return null;
-    const head = convert(token.slice(0, -1), { chain });
+    const head = convert(token.slice(0, -1), { chain, number });
     return head ? { text: head, pending: last } : null;
   }
 
@@ -138,13 +143,16 @@ const Eng2Kor = (() => {
   // 커서 뒤에 이 글자가 있으면 단어나 식별자 중간이다
   const AFTER_BLOCK = /[A-Za-z0-9_@\/.\-]/;
 
+  // 숫자에 붙은 토큰은 숫자 앞을 경계로 보고 number로 알린다 (5ro → 5개)
   function extractToken(before, next = '', prevOutside = '') {
     const match = /[A-Za-z]+$/.exec(before);
     if (!match) return null;
     if (next && AFTER_BLOCK.test(next)) return null;
-    const prev = match.index > 0 ? before[match.index - 1] : prevOutside;
+    const number = /\d(?:[\d.,]*\d)?$/.exec(before.slice(0, match.index));
+    const edge = number ? number.index : match.index;
+    const prev = edge > 0 ? before[edge - 1] : prevOutside;
     if (prev && !BEFORE_OK.test(prev)) return null;
-    return { token: match[0], start: match.index };
+    return { token: match[0], start: match.index, number: !!number };
   }
 
   return {

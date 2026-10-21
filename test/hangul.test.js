@@ -64,6 +64,20 @@ test('convert: 결과 예시', () => {
   for (const [token, chain, expected] of rows) assert.equal(E.convert(token, { chain }), expected, `${token} chain=${chain}`);
 });
 
+test('convert: 첫 글자만 대문자면 영어 이름으로 보고, 쌍자음·ㅒ·ㅖ를 치는 Q W E R T O P는 예외', () => {
+  for (const token of ['Clairaut', 'Alaska', 'Abel', 'Dkssud']) assert.equal(E.convert(token), null, token);
+  expectAll(E.convert, { Rkr: '깍', Wkd: '짱', Tkfkd: '싸랑', dkssuD: '안녕', dlTDj: '있어' });
+});
+
+test('convert: 숫자 바로 뒤에서는 단위·조사로 시작할 때만 바꾼다', () => {
+  const number = (token) => E.convert(token, { number: true });
+  expectAll(number, {
+    ro: '개', tl: '시', qns: '분', dnjs: '원', aud: '명', tlrks: '시간', sus: '년', dlf: '일', dnjf: '월',
+    cmd: '층', emd: '등', qjs: '번', sms: '는', dms: '은', dp: '에', dl: '이', rk: '가', ghk: '화', rkwl: '가지',
+    gb: null, th: null, vh: null, qhd: null, fb: null, dkssud: null, st: null, nd: null,
+  });
+});
+
 test('convert: 영문자 외 글자가 섞이면 변환하지 않는다', () => {
   for (const token of ['dkssud1', 'dk_ssud', 'dkssud!']) assert.equal(E.convert(token), null, token);
 });
@@ -80,8 +94,12 @@ test('preview: 확정·조합 중·없음', () => {
     ['with', false, null], ['hello', false, null], ['a', false, null], ['NASA', false, null], ['', false, null],
     ['go', false, null], ['go', true, { text: '해', pending: '' }],
     ['gpt', false, null], ['thx', false, null], ['gpt', true, null], // 사전 단어는 조합 중으로도 보여 주지 않는다
+    ['Clairaut', false, null], ['Dkss', false, null],
   ];
   for (const [token, chain, expected] of rows) assert.deepEqual(E.preview(token, { chain }), expected, `${token} chain=${chain}`);
+  assert.deepEqual(E.preview('ro', { number: true }), { text: '개', pending: '' });
+  assert.deepEqual(E.preview('tls', { number: true }), { text: '시', pending: 'ㄴ' });
+  assert.equal(E.preview('gb', { number: true }), null);
 });
 
 test('words.js: 모든 단어가 한글 후보를 낸다', () => {
@@ -102,13 +120,21 @@ test('extractToken: 토큰 경계', () => {
   assert.equal(tok('안녕,dkssud'), 'dkssud');
   assert.equal(tok('(dkssud'), 'dkssud');
   assert.equal(tok('“dkssud'), 'dkssud');
-  for (const before of ['user_dkssud', 'a@dkssud', 'http://dkssud', '3dkssud', 'e.g', 'well-dkssud', '#dkssud', ':dkssud']) {
+  for (const before of ['user_dkssud', 'a@dkssud', 'http://dkssud', 'e.g', 'well-dkssud', '#dkssud', ':dkssud', 'v2ro', 'a1b2ro', '#3ro', '1.ro']) {
     assert.equal(tok(before), null, before);
   }
   for (const next of ['a', 'Z', '1', '_', '@', '/', '.', '-']) assert.equal(tok('dkssud', next), null, `next ${next}`);
   for (const next of [' ', '안', ')', ',']) assert.equal(tok('dkssud', next), 'dkssud', `next ${next}`);
   assert.equal(tok('dkssud', '', 'c'), null);
   assert.equal(tok('dkssud', '', ' '), 'dkssud');
+  for (const before of ['5ro', '안녕 5ro', '(5ro', '3.5ro', '1,000dnjs', '3dkssud']) {
+    const hit = E.extractToken(before);
+    assert.equal(hit?.number, true, before);
+    assert.equal(hit.start, before.length - hit.token.length, before);
+  }
+  assert.equal(E.extractToken('dkssud').number, false);
+  assert.equal(tok('5ro', '', 'c'), null);
+  assert.equal(tok('5ro', '', ' '), 'ro');
   assert.equal(tok(''), null);
   assert.equal(tok('안녕 '), null);
 });
@@ -154,7 +180,7 @@ const EVAL = [
   '{ㅇㅋ}', '{ㄱㄱ}', '{ㄳ}', '{ㅋㅋㅋ} {진짜} {웃기다}',
   // 그대로 둬야 하는 영어
   'hello world', 'good morning', 'this is a test', 'let me know', 'go for it', 'to do list', 'and so on',
-  'gg wp', 'thx', 'git push origin main', 'npm install', 'NASA OK', 'iPhone Seoul', 'dog cat', 'sun run fun',
+  'gg wp', 'thx', 'git push origin main', 'npm install', 'NASA OK', 'iPhone Seoul', 'Clairaut Alaska Abel', 'dog cat', 'sun run fun',
   // 한글 모드로 친 한국어 + 영어
   '조건문 for 루프', '언어 go 써봤어', '오늘 meeting 있어', '이 db 확인해',
   // 영문 모드 한국어와 영어가 섞임
