@@ -42,6 +42,10 @@ const Eng2KorPreview = (() => {
   let mirror = null;
   let mirrorFor = null; // 복사본이 지금 흉내 내는 textarea
   let mirrorKey = ''; // 그때의 폭·스타일
+  // 복사본 안의 단어 앞 글자(텍스트 노드), 단어와 커서 뒤에 붙은 글자(span). 노드를 다시 만들지 않고 글자만 고쳐 쓴다
+  let mirrorHead = null;
+  let mirrorWord = null;
+  let mirrorTail = null;
   let attached = 0;
   let canvas = null;
   let side = { key: null, below: true }; // 한 단어를 치는 동안 위/아래를 유지한다
@@ -66,6 +70,12 @@ const Eng2KorPreview = (() => {
       bubble.append(textEl, pendingEl);
       mirror = document.createElement('div');
       mirror.className = 'mirror';
+      mirrorHead = document.createTextNode('');
+      mirrorWord = document.createElement('span');
+      mirrorTail = document.createElement('span');
+      mirrorWord.append('');
+      mirrorTail.append('');
+      mirror.append(mirrorHead, mirrorWord, mirrorTail);
       shadow.append(style, bubble, mirror);
     }
     document.documentElement.append(host);
@@ -148,6 +158,10 @@ const Eng2KorPreview = (() => {
     return { start: at(start), caret: at(end) };
   }
 
+  const setData = (node, data) => {
+    if (node.data !== data) node.data = data;
+  };
+
   // textarea: 같은 글꼴·폭의 보이지 않는 복사본 하나를 재사용해 단어와 커서 자리를 잰다
   function textareaAnchors(el, start, end, style, rect) {
     if (el.value.length > MAX_TEXTAREA || !ensure()) return null;
@@ -159,16 +173,15 @@ const Eng2KorPreview = (() => {
       mirrorFor = el;
       mirrorKey = key;
     }
-    const word = document.createElement('span');
-    word.textContent = el.value.slice(start, end);
-    const rest = document.createElement('span');
-    rest.textContent = /^\S*/.exec(el.value.slice(end))[0] || '​'; // 커서 뒤에 붙은 글자들 (줄바꿈 위치를 맞춘다)
-    mirror.replaceChildren(el.value.slice(0, start), word, rest);
+    // 한 단어를 치는 동안 앞 글자 노드는 그대로라 브라우저가 그 부분의 글자 모양을 다시 계산하지 않는다 (긴 textarea에서 큰 차이)
+    setData(mirrorHead, el.value.slice(0, start));
+    setData(mirrorWord.firstChild, el.value.slice(start, end));
+    setData(mirrorTail.firstChild, /^\S*/.exec(el.value.slice(end))[0] || '​'); // 커서 뒤에 붙은 글자들 (줄바꿈 위치를 맞춘다)
     const box = mirror.getBoundingClientRect();
     const dx = rect.left + parseFloat(style.borderLeftWidth) - box.left - el.scrollLeft;
     const dy = rect.top + parseFloat(style.borderTopWidth) - box.top - el.scrollTop;
     const point = (r) => (r ? { x: r.left + dx, top: r.top + dy, bottom: r.bottom + dy } : null);
-    return { start: point(word.getClientRects()[0]), caret: point(rest.getClientRects()[0]) };
+    return { start: point(mirrorWord.getClientRects()[0]), caret: point(mirrorTail.getClientRects()[0]) };
   }
 
   function fieldAnchors(el, start, end, style = getComputedStyle(el)) {
