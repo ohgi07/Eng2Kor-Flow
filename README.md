@@ -21,6 +21,8 @@ node --test                        # 테스트
 powershell -File scripts/pack.ps1  # 스토어 업로드용 zip
 ```
 
+`node --test`는 크롬을 찾으면 `test/browser.test.mjs`도 돌립니다. 헤드리스 크롬에 실제 키 입력을 보내 input, textarea, contenteditable과 자체 모델 편집기 흉내(`test/editors.html`)에서 괄호와 문장부호 변환, 빠른 연속 입력, Backspace 복원을 확인합니다. 크롬 경로는 `CHROME` 환경 변수로 줄 수 있고, 찾지 못하면 건너뜁니다. Slate 항목은 esm.sh에 접속할 수 있을 때만 돕니다.
+
 ## 지원 사이트
 
 2026-10-10, 크롬에서 확인했습니다.
@@ -38,4 +40,5 @@ powershell -File scripts/pack.ps1  # 스토어 업로드용 zip
 - 구글 문서는 아직 지원하지 않습니다(다음 버전 예정).
 - 비밀번호 판정은 type, autocomplete, 마스킹 스타일, name/id 신호가 있는 입력칸만 보장합니다.
 - Gmail, ChatGPT, Claude에서는 Ctrl+Z가 변환과 그 앞의 입력을 한 번에 되돌릴 수 있습니다.
-- `beforeinput`을 받아들이지 않는 자체 모델 편집기는 화면과 내용이 어긋날 수 있습니다. 문제가 있는 사이트는 팝업에서 끌 수 있습니다.
+- 변환용 `beforeinput`을 취소만 하고 반영하지 않는 편집기와, 스크립트가 보낸 입력을 무시하는 Slate(slate-react 0.128~0.132)에서는 바꾸지 않고 친 글자를 그대로 둡니다.
+- `beforeinput`을 받아들이지 않으면서 DOM 변경도 따라가지 않는 자체 모델 편집기는 화면과 내용이 어긋날 수 있습니다. 문제가 있는 사이트는 팝업에서 끌 수 있습니다.

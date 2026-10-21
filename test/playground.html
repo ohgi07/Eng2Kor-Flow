@@ -5,13 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eng2Kor Playground</title>
 <script>
-  // ?direct=1: 확장 없이 스크립트를 직접 로드한다. 그 전에 가짜 chrome API를 둔다.
-  if (new URLSearchParams(location.search).has('direct')) {
+  // ?direct=1: 확장 없이 스크립트를 직접 로드한다. 그 전에 가짜 chrome API를 둔다. ?preview=0이면 미리보기를 끈 설정으로 시작한다.
+  const params = new URLSearchParams(location.search);
+  if (params.has('direct')) {
+    const overrides = params.get('preview') === '0' ? { preview: false } : {};
     const fakeChrome = {
-      storage: { sync: { get: (defaults, callback) => callback({ ...defaults }) }, onChanged: { addListener() {} } },
+      storage: { sync: { get: (defaults, callback) => callback({ ...defaults, ...overrides }) }, onChanged: { addListener() {} } },
       runtime: { onMessage: { addListener() {} } },
     };
-    Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
+    // 크롬에 따라 window.chrome을 다시 정의할 수 없으면 덮어쓴다
+    try {
+      Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
+    } catch {
+      window.chrome = fakeChrome;
+    }
     for (const name of ['words', 'hangul', 'preview', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
   }
 </script>

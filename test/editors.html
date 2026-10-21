@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eng2Kor Editors</title>
+<script>
+  // playground.html과 같은 직접 로드 모드. ?preview=0이면 미리보기를 끈 설정으로 시작한다.
+  const params = new URLSearchParams(location.search);
+  if (params.has('direct')) {
+    const overrides = params.get('preview') === '0' ? { preview: false } : {};
+    const fakeChrome = {
+      storage: { sync: { get: (defaults, callback) => callback({ ...defaults, ...overrides }) }, onChanged: { addListener() {} } },
+      runtime: { onMessage: { addListener() {} } },
+    };
+    // 크롬에 따라 window.chrome을 다시 정의할 수 없으면 덮어쓴다
+    try {
+      Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
+    } catch {
+      window.chrome = fakeChrome;
+    }
+    for (const name of ['words', 'hangul', 'preview', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
+  }
+</script>
+<style>
+  body { font: 15px/1.6 system-ui, "Malgun Gothic", sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+  label { display: block; font-size: 13px; color: #555; margin-top: 12px; }
+  input, textarea, [contenteditable] { display: block; width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; border: 1px solid #aaa; border-radius: 4px; }
+  .model { white-space: pre-wrap; } /* 자체 모델 편집기처럼 공백을 그대로 그린다 */
+  output { display: block; font-size: 13px; color: #555; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Eng2Kor Editors</h1>
+<p>beforeinput을 다르게 다루는 자체 모델 편집기 흉내. 편집기 아래에 모델 글자와 전송 기록이 보인다. 자체 모델 편집기에서 Enter는 전송(모델을 기록하고 비움)이다.</p>
+
+<label for="input">input</label><input id="input">
+<label for="textarea">textarea</label><textarea id="textarea" rows="2"></textarea>
+<label>contenteditable</label><div id="plain" contenteditable="true"></div>
+
+<label>sync: 합성 beforeinput을 받아 바로 다시 그린다 (Quill 2 등)</label>
+<div id="sync" class="model" contenteditable="true"></div><output></output>
+<label>react: 모델은 바로 바꾸고 마이크로태스크 두 번 뒤에 다시 그린다 (Slate는 onChange를, React는 렌더링을 마이크로태스크로 미룬다)</label>
+<div id="react" class="model" contenteditable="true"></div><output></output>
+<label>swallow: 합성 beforeinput을 취소만 하고 반영하지 않는다. 실제 키 입력은 브라우저에 맡긴다</label>
+<div id="swallow" class="model" contenteditable="true"></div><output></output>
+<label>strict: 합성 beforeinput은 무시하고 실제 키 입력만 반영한다 (합성 이벤트를 무시하는 Slate)</label>
+<div id="strict" class="model" contenteditable="true" data-slate-editor="true"></div><output></output>
+
+<script>
+  // 모델 글자를 span 하나의 텍스트 노드로 그린다. 실제 키 입력은 target range를 모델 위치로 옮겨 반영한다.
+  // 그리기 전에 DOM 선택이 낡아 있으면 실제 편집기처럼 엉뚱한 자리를 고친다.
+  function fakeEditor(el, mode) {
+    const model = { text: '', caret: 0, sent: [] };
+    const node = document.createTextNode('');
+    el.append(Object.assign(document.createElement('span'), { className: 'leaf' }));
+    el.firstChild.append(node);
+    const log = el.nextElementSibling;
+    const offsetOf = (container, offset) => (container === node ? offset : offset === 0 ? 0 : model.text.length);
+
+    function render() {
+      node.data = model.text;
+      if (document.activeElement === el) getSelection().collapse(node, model.caret);
+      log.textContent = `모델: ${model.text}\n${model.sent.map((s) => `전송: ${s}`).join('\n')}`;
+    }
+    const schedule = mode === 'sync' ? (fn) => fn() : (fn) => queueMicrotask(() => queueMicrotask(fn));
+
+    function apply(start, end, data) {
+      model.text = model.text.slice(0, start) + data + model.text.slice(end);
+      model.caret = start + data.length;
+      schedule(render);
+    }
+
+    el.addEventListener('beforeinput', (e) => {
+      if (mode === 'swallow') {
+        if (!e.isTrusted) e.preventDefault();
+        return;
+      }
+      if (mode === 'strict' && !e.isTrusted) return;
+      e.preventDefault();
+      const [range] = e.getTargetRanges();
+      if (!range) return;
+      const start = offsetOf(range.startContainer, range.startOffset);
+      const end = offsetOf(range.endContainer, range.endOffset);
+      if (e.inputType === 'insertText') apply(start, end, e.data ?? '');
+      else if (e.inputType.startsWith('delete')) apply(start, end, '');
+    });
+    // swallow는 브라우저가 고친 DOM에서 모델을 다시 읽는다
+    if (mode === 'swallow') {
+      el.addEventListener('input', () => {
+        model.text = el.textContent;
+        log.textContent = `모델: ${model.text}`;
+      });
+    }
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (e.shiftKey) return;
+      model.sent.push(model.text);
+      model.text = '';
+      model.caret = 0;
+      render();
+    });
+    el.addEventListener('focus', () => {
+      if (mode !== 'swallow') render();
+    });
+    render();
+    return model;
+  }
+
+  window.editors = Object.fromEntries(['sync', 'react', 'swallow', 'strict'].map((mode) => [mode, fakeEditor(document.getElementById(mode), mode)]));
+</script>
+</body>
+</html>

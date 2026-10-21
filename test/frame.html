@@ -10,7 +10,12 @@
       storage: { sync: { get: (defaults, callback) => callback({ ...defaults }) }, onChanged: { addListener() {} } },
       runtime: { onMessage: { addListener() {} } },
     };
-    Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
+    // 크롬에 따라 window.chrome을 다시 정의할 수 없으면 덮어쓴다
+    try {
+      Object.defineProperty(window, 'chrome', { value: fakeChrome, configurable: true, writable: true });
+    } catch {
+      window.chrome = fakeChrome;
+    }
     for (const name of ['words', 'hangul', 'preview', 'content']) document.write(`<script src="/extension/src/${name}.js"><\/script>`);
   }
 </script>
