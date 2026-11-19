@@ -110,9 +110,12 @@ const Eng2Kor = (() => {
   const CHAIN_WORDS = new Set(['go', 'so', 'to', 'do', 'wp', 'aka', 'rid']);
   const WORDS = typeof ENGLISH_WORDS !== 'undefined' ? ENGLISH_WORDS : require('./words.js');
 
+  // 사전에 없지만 소문자로도 흔히 치는 회사·브랜드 이름. sk(나) dhl(외)처럼 흔한 한글 낱말과 겹치는 이름은 넣지 않는다.
+  const BRANDS = new Set(['tj', 'cj', 'skt', 'ebs', 'sm', 'audi', 'disney', 'vivo', 'zigbang']);
+
   const isEnglish = (token, chain) => {
     const lower = token.toLowerCase();
-    return WORDS.has(lower) && !(chain && CHAIN_WORDS.has(lower));
+    return BRANDS.has(lower) || (WORDS.has(lower) && !(chain && CHAIN_WORDS.has(lower)));
   };
   // 두벌식에서 Shift가 뜻이 없는 글자(Q W E R T O P 밖)를 대문자로 시작한 단어는 영어 이름으로 본다
   const NAME = /^[ABCDFGHIJKLMNSUVXYZ][a-z]+$/;

@@ -69,6 +69,16 @@ test('convert: 첫 글자만 대문자면 영어 이름으로 보고, 쌍자음�
   expectAll(E.convert, { Rkr: '깍', Wkd: '짱', Tkfkd: '싸랑', dkssuD: '안녕', dlTDj: '있어' });
 });
 
+test('convert: 회사·브랜드 이름은 소문자로 쳐도 그대로 둔다', () => {
+  for (const token of ['tj', 'cj', 'skt', 'ebs', 'sm', 'disney']) {
+    assert.equal(E.convert(token), null, token);
+    assert.equal(E.convert(token, { chain: true }), null, `${token} chain`);
+    assert.equal(E.preview(token), null, `${token} preview`);
+  }
+  // 흔한 한글 낱말과 겹치는 이름은 넣지 않는다
+  expectAll(E.convert, { sk: '나', dhl: '외' });
+});
+
 test('convert: 숫자 바로 뒤에서는 단위·조사로 시작할 때만 바꾼다', () => {
   const number = (token) => E.convert(token, { number: true });
   expectAll(number, {
